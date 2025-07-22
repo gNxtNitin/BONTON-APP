@@ -1,0 +1,156 @@
+{
+    "info": {
+      "_postman_id": "a7b50cc0-e1c4-4e02-904b-8ad8c92acfd2",
+      "name": "Employee Punching + DA API",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "item": [
+      {
+        "name": "Login",
+        "request": {
+          "method": "POST",
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": {
+            "mode": "raw",
+            "raw": "{\n  \"mobileOrEmail\": \"G-1312\",\n  \"isLoginWithOtp\": true,\n  \"password\": \"abc@1234\",\n  \"companyCode\": 0,\n  \"verificationCode\": \"string\",\n  \"userId\": \"string\",\n  \"isResendCode\": 0,\n  \"isJwtToken\": true\n}"
+          },
+          "url": {
+            "raw": "http://103.178.248.179:86/api/Auth/AuthenticateUser",
+            "protocol": "http",
+            "host": ["103.178.248.179"],
+            "port": "86",
+            "path": ["api", "Auth", "AuthenticateUser"]
+          }
+        }
+      },
+      {
+        "name": "Add Punch (E-Punch)",
+        "request": {
+          "method": "POST",
+          "header": [
+            { "key": "Content-Type", "value": "multipart/form-data" }
+          ],
+          "body": {
+            "mode": "formdata",
+            "formdata": [
+              { "key": "EmpID", "value": "G-1312", "type": "text" },
+              { "key": "Latitude", "value": "28.7041", "type": "text" },
+              { "key": "Longitude", "value": "77.1025", "type": "text" },
+              { "key": "KM", "value": "0.0", "type": "text" },
+              { "key": "ConcernedParty", "value": "ClientX", "type": "text" },
+              { "key": "Location", "value": "Delhi", "type": "text" },
+              { "key": "Address", "value": "Connaught Place", "type": "text" },
+              { "key": "EPhoto", "type": "file", "src": "" }
+            ]
+          },
+          "url": {
+            "raw": "http://103.178.248.179:86/api/Punching/AddEpunchRecord",
+            "protocol": "http",
+            "host": ["103.178.248.179"],
+            "port": "86",
+            "path": ["api", "Punching", "AddEpunchRecord"]
+          }
+        }
+      },
+      {
+        "name": "Get Punching Report",
+        "request": {
+          "method": "GET",
+          "url": {
+            "raw": "http://103.178.248.179:86/api/Punching/GetPunchingReportData?EmpId=G-1312&DTRangeFrom=2024-02-02&DTRangeTo=2026-02-02&IsTeamData=false",
+            "protocol": "http",
+            "host": ["103.178.248.179"],
+            "port": "86",
+            "path": ["api", "Punching", "GetPunchingReportData"],
+            "query": [
+              { "key": "EmpId", "value": "G-1312" },
+              { "key": "DTRangeFrom", "value": "2024-02-02" },
+              { "key": "DTRangeTo", "value": "2026-02-02" },
+              { "key": "IsTeamData", "value": "false" }
+            ]
+          }
+        }
+      },
+      {
+        "name": "Add DA Record",
+        "request": {
+          "method": "POST",
+          "header": [
+            { "key": "Content-Type", "value": "multipart/form-data" }
+          ],
+          "body": {
+            "mode": "formdata",
+            "formdata": [
+              { "key": "KM", "value": "55", "type": "text" },
+              { "key": "EmpId", "value": "G-1312", "type": "text" },
+              { "key": "FromDate", "value": "2024-02-02T00:00:00", "type": "text" },
+              { "key": "ToDate", "value": "2026-02-02T00:00:00", "type": "text" },
+              { "key": "DA", "value": "1500", "type": "text" },
+              { "key": "Hotel", "value": "800", "type": "text" },
+              { "key": "Other", "value": "200", "type": "text" },
+              {
+                "key": "Bills",
+                "type": "file",
+                "src": ""
+              },
+              {
+                "key": "Descriptions",
+                "value": "Travel from Delhi to Agra",
+                "type": "text"
+              }
+            ]
+          },
+          "url": {
+            "raw": "http://103.178.248.179:86/api/DA/AddDARecord",
+            "protocol": "http",
+            "host": ["103.178.248.179"],
+            "port": "86",
+            "path": ["api", "DA", "AddDARecord"]
+          }
+        }
+      },
+      {
+        "name": "Get KM by Date Range",
+        "request": {
+          "method": "GET",
+          "url": {
+            "raw": "http://103.178.248.179:86/api/DA/GetKMValueByDateRange?userId=G-1312&fromDate=2024-02-02&toDate=2026-02-02",
+            "protocol": "http",
+            "host": ["103.178.248.179"],
+            "port": "86",
+            "path": ["api", "DA", "GetKMValueByDateRange"],
+            "query": [
+              { "key": "userId", "value": "G-1312" },
+              { "key": "fromDate", "value": "2024-02-02" },
+              { "key": "toDate", "value": "2026-02-02" }
+            ]
+          }
+        }
+      },
+      {
+        "name": "Get DA Report",
+        "request": {
+          "method": "GET",
+          "url": {
+            "raw": "http://103.178.248.179:86/api/DA/GetDAReportData?EmpId=G-1312&DTRangeFrom=2024-02-02&DTRangeTo=2026-02-02&IsTeamData=false",
+            "protocol": "http",
+            "host": ["103.178.248.179"],
+            "port": "86",
+            "path": ["api", "DA", "GetDAReportData"],
+            "query": [
+              { "key": "EmpId", "value": "G-1312" },
+              { "key": "DTRangeFrom", "value": "2024-02-02" },
+              { "key": "DTRangeTo", "value": "2026-02-02" },
+              { "key": "IsTeamData", "value": "false" }
+            ]
+          }
+        }
+      }
+    ]
+  }
+  
