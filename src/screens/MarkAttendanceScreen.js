@@ -75,6 +75,35 @@ const getDrivingDistance = async (start, end) => {
   }
 };
 
+// Helpers for persistent journey state
+const ACTIVE_JOURNEY_KEY = 'activeJourney';
+
+const saveActiveJourney = async (data) => {
+  try {
+    await AsyncStorage.setItem(ACTIVE_JOURNEY_KEY, JSON.stringify(data));
+  } catch (e) {
+    console.error('Failed to save active journey:', e);
+  }
+};
+
+const loadActiveJourney = async () => {
+  try {
+    const saved = await AsyncStorage.getItem(ACTIVE_JOURNEY_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch (e) {
+    console.error('Failed to load active journey:', e);
+    return null;
+  }
+};
+
+const clearActiveJourney = async () => {
+  try {
+    await AsyncStorage.removeItem(ACTIVE_JOURNEY_KEY);
+  } catch (e) {
+    console.error('Failed to clear active journey:', e);
+  }
+};
+
 const MarkAttendanceScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
@@ -623,6 +652,16 @@ const MarkAttendanceScreen = () => {
                   };
                   setStopLocation(stopLoc);
 
+                  // Log the driving distance between start and stop
+                  if (startLocation && stopLoc) {
+                    try {
+                      const drivingDistance = await getDrivingDistance(startLocation, stopLoc);
+                      console.log('Driving distance (getDrivingDistance) between start and stop:', drivingDistance, 'km');
+                    } catch (e) {
+                      console.error('Error getting driving distance:', e);
+                    }
+                  }
+
                   // Add current journey to history
                   const currentJourney = {
                     startLocation: {
@@ -740,6 +779,7 @@ const MarkAttendanceScreen = () => {
                 console.log('API Response:', data);
 
                 if (data.code === 1) {
+                  await clearActiveJourney();
                   Alert.alert('Success', 'Attendance marked successfully.', [
                     {
                       text: 'OK',
@@ -1101,6 +1141,51 @@ const MarkAttendanceScreen = () => {
       }
     };
   }, [journeyStartTime]);
+
+  // Restore journey state on mount
+  useEffect(() => {
+    const restoreJourney = async () => {
+      const data = await loadActiveJourney();
+      if (data) {
+        setJourneyStartTime(data.journeyStartTime ? new Date(data.journeyStartTime) : null);
+        setStartLocation(data.startLocation);
+        setCurrentPath(data.currentPath || []);
+        setAccumulatedDistance(data.accumulatedDistance || 0);
+        setCategoryValue(data.categoryValue || null);
+        setDropdownValue(data.dropdownValue || null);
+        setAddress(data.address || '');
+        setUploadedImage(data.uploadedImage || null);
+        // restore any other state if needed
+      }
+    };
+    restoreJourney();
+  }, []);
+
+  // Persist journey state whenever it changes
+  useEffect(() => {
+    if (journeyStartTime) {
+      saveActiveJourney({
+        journeyStartTime,
+        startLocation,
+        currentPath,
+        accumulatedDistance,
+        categoryValue,
+        dropdownValue,
+        address,
+        uploadedImage,
+        // add any other relevant state
+      });
+    }
+  }, [
+    journeyStartTime,
+    startLocation,
+    currentPath,
+    accumulatedDistance,
+    categoryValue,
+    dropdownValue,
+    address,
+    uploadedImage,
+  ]);
 
   const renderDropdownOptions = (options, onSelect) => {
     return (
