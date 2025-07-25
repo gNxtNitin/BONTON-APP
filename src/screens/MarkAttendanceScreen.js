@@ -1699,8 +1699,25 @@ const MarkAttendanceScreen = () => {
             shadowRadius: 4,
             elevation: 2,
           }}>
+            {/* Active Indicator */}
+            {journeyStartTime !== null && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                <View
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 7,
+                    backgroundColor: borderColor === 'transparent' ? 'transparent' : Colors.green,
+                    borderWidth: 2,
+                    borderColor: '#6EC531',
+                    marginRight: 8,
+                  }}
+                />
+                <Text style={{ color: '#388E3C', fontWeight: 'bold', fontSize: 15, fontFamily: 'Montserrat' }}>Active</Text>
+              </View>
+            )}
             {[
-              { label: 'Date', value: (journeyInfo.date === '-' || journeyInfo.date === '0') ? '00-00-00' : journeyInfo.date },
+              { label: 'Start Time', value: journeyStartTime ? new Date(journeyStartTime).toLocaleTimeString() : '00:00:00' },
               { label: 'Time', value: (journeyInfo.time === '-' || journeyInfo.time === '0') ? '00-00-00' : journeyInfo.time },
               { label: 'Kilometers', value: (journeyInfo.kilometers === '-' || journeyInfo.kilometers === '0') ? '0km' : `${journeyInfo.kilometers}km` }
             ].map((item, idx, arr) => (
@@ -1960,6 +1977,22 @@ const MarkAttendanceScreen = () => {
           </View>
         </View>
       </Modal>
+      {/* Simple Loader Overlay */}
+      {isLoading && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.2)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 9999,
+        }}>
+          <ActivityIndicator size="large" color="#014B6E" />
+        </View>
+      )}
     </ImageBackground>
   );
 };
