@@ -39,7 +39,8 @@ const DROPDOWN_ICON = require('../assets/images/Dropdown.png');
 
 const { width } = Dimensions.get('window');
 
-const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImUyNTZmMWRhMjZkYzQ1OGRiNTE4ZGQxOGRiMzg4MTlkIiwiaCI6Im11cm11cjY0IneyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImUyNTZmMWRhMjZkYzQ1OGRiNTE4ZGQxOGRiMzg4MTlkIiwiaCI6Im11cm11cjY0In0='; // OpenRouteService API key
+const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImUyNTZmMWRhMjZkYzQ1OGRiNTE4ZGQxOGRiMzg4MTlkIiwiaCI6Im11cm11cjY0In0=';
+ // OpenRouteService API key
 
 const areLocationsSame = (loc1, loc2) => {
   return loc1.latitude === loc2.latitude && loc1.longitude === loc2.longitude;
@@ -49,7 +50,7 @@ const getDrivingDistance = async (start, end) => {
   if (areLocationsSame(start, end)) {
     return 0;
   }
-  const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+  const url = 'https://api.openrouteservice.org/v2/directions/driving-car/json';
   const body = {
     coordinates: [
       [start.longitude, start.latitude],
@@ -62,16 +63,21 @@ const getDrivingDistance = async (start, end) => {
   };
   try {
     const response = await axios.post(url, body, { headers });
-    const distanceInMeters = response.data.features[0].properties.segments[0].distance;
+    // Defensive checks for small/invalid responses
+    if (!response.data || !response.data.routes || !Array.isArray(response.data.routes) || response.data.routes.length === 0) {
+      console.error('Distance missing or invalid in API response', response.data);
+      return 0;
+    }
+    const distanceInMeters = response.data.routes[0].summary && response.data.routes[0].summary.distance;
     if (typeof distanceInMeters !== 'number') {
       console.error('Distance missing in API response', response.data);
-      return null;
+      return 0;
     }
     return distanceInMeters / 1000;
   } catch (err) {
     console.error('Distance fetch error:', err);
     Alert.alert('Error', 'Failed to fetch distance from API');
-    return null;
+    return 0;
   }
 };
 
@@ -409,6 +415,7 @@ const MarkAttendanceScreen = () => {
 
     setIsStartingJourney(true);
     setShowLocationHistory(true);
+    setIsLoading(true);
 
     try {
       // Step 2: Request permission with user confirmation
@@ -430,6 +437,7 @@ const MarkAttendanceScreen = () => {
                 if (!hasPermission) {
                   Alert.alert('Permission Denied', 'Location permission is required.');
                   setIsStartingJourney(false);
+                  setIsLoading(false);
                   return;
                 }
 
@@ -572,10 +580,12 @@ const MarkAttendanceScreen = () => {
                   }
                 );
 
+                setIsLoading(false);
                 Alert.alert('Success', 'Journey tracking started successfully.');
               } catch (error) {
                 console.error('Error in journey start process:', error);
                 Alert.alert('Error', 'Failed to start journey. Please try again.');
+                setIsLoading(false);
               } finally {
                 setIsStartingJourney(false);
               }
@@ -588,6 +598,7 @@ const MarkAttendanceScreen = () => {
       console.error('Error in startJourneyHandler:', error);
       setIsStartingJourney(false);
       Alert.alert('Error', 'An unexpected error occurred. Please try again.');
+      setIsLoading(false);
     }
   };
 
@@ -655,10 +666,13 @@ const MarkAttendanceScreen = () => {
                   // Log the driving distance between start and stop
                   if (startLocation && stopLoc) {
                     try {
+                      setIsLoading(true);
                       const drivingDistance = await getDrivingDistance(startLocation, stopLoc);
                       console.log('Driving distance (getDrivingDistance) between start and stop:', drivingDistance, 'km');
                     } catch (e) {
                       console.error('Error getting driving distance:', e);
+                    } finally {
+                      setIsLoading(false);
                     }
                   }
 
@@ -1045,7 +1059,10 @@ const MarkAttendanceScreen = () => {
         { id: 'CAT004', name: 'Architect' },
         { id: 'CAT005', name: 'Electrical consultant' },
         { id: 'CAT006', name: 'Builder' },
-        { id: 'CAT007', name: 'Electrical contractor' }
+        { id: 'CAT007', name: 'Electrical contractor' },
+        {id:'CAT008',name:'OEM'},
+        {id:'CAT009',name:'Panel builders'},
+        {id:'CAT010',name:'End Client'}
       ];
 
       const formattedLocations = mockLocations.map(location => ({
