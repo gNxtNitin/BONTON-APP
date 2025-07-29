@@ -32,6 +32,18 @@ import RNAndroidLocationEnabler from 'react-native-android-location-enabler';
 import { ENDPOINTS, BASE_URL } from '../utils/apiConfig';
 import axios from 'axios';
 
+// Add this utility function at the top of your file (after imports)
+const checkInternetConnection = async () => {
+  try {
+    const response = await fetch('https://www.google.com', { method: 'HEAD' });
+    return response.ok;
+  } catch (error) {
+    console.error('Internet check failed:', error);
+    return false;
+  }
+};
+
+
 const AUTH_TOKEN_KEY = '@auth_token';
 const LOGIN_STATUS_KEY = '@login_status';
 
@@ -122,7 +134,7 @@ const MarkAttendanceScreen = () => {
   const [dropdownValue, setDropdownValue] = useState(null);
   const [categoryValue, setCategoryValue] = useState(null);
   const [journeys, setJourneys] = useState([]);
-  const [accumulatedDistance, setAccumulatedDistance] = useState(0);
+
   const [journeyStartTime, setJourneyStartTime] = useState(null); 
   const [currentPath, setCurrentPath] = useState([]);
   const [schools, setSchools] = useState([]);
@@ -158,12 +170,26 @@ const MarkAttendanceScreen = () => {
 
   const [lastValidLocation, setLastValidLocation] = useState(null);
   const [gpsAccuracy, setGpsAccuracy] = useState(null);
+  const [startCoords, setStartCoords] = useState({ latitude: null, longitude: null });
+  const [endCoords, setEndCoords] = useState({ latitude: null, longitude: null });
+  const [routeDistance, setRouteDistance] = useState(null);
 
   useEffect(() => {
     if (route.params?.newJourney) {
       setJourneys(prev => [...prev, route?.params?.newJourney]);
     }
   }, [route.params?.newJourney]);
+
+  // Restore active journey state on component mount
+  useEffect(() => {
+    const loadActiveJourney = async () => {
+      const savedStart = await AsyncStorage.getItem('activeJourneyStartTime');
+      if (savedStart) {
+        setJourneyStartTime(new Date(savedStart));
+      }
+    };
+    loadActiveJourney();
+  }, []);
 
   const checkLocationPermission = async () => {
     if (Platform.OS === 'android') {
@@ -200,46 +226,11 @@ const MarkAttendanceScreen = () => {
 
   // Add new state for location status
   const [locationEnabled, setLocationEnabled] = useState(false);
-  const [isCheckingLocation, setIsCheckingLocation] = useState(false);
 
-  const promptEnableLocation = async () => {
-    if (Platform.OS === 'android') {
-      try {
-        // First check if location is already enabled
-        const result = await RNAndroidLocationEnabler.isLocationEnabled({
-          interval: 10000,
-          fastInterval: 5000,
-        });
-        
-        // If already enabled, return true immediately
-        if (result === true || result === "already-enabled") {
-          console.log('Location is already enabled');
-          return true;
-        }
 
-        // If not enabled, prompt to enable
-        const enableResult = await RNAndroidLocationEnabler.promptForEnableLocationIfNeeded({
-          interval: 10000,
-          fastInterval: 5000,
-        });
-        
-        return enableResult === "already-enabled" || enableResult === "enabled";
-      } catch (err) {
-        console.error('Error in promptEnableLocation:', err);
-        // If error is because location is already enabled, return true
-        if (err.message && err.message.includes('already-enabled')) {
-          return true;
-        }
-        return false;
-      }
-    }
-    return true;
-  };
 
-  const checkLocationServices = async (retryCount = 0) => {
+  const checkLocationServices = async () => {
     try {
-      setIsCheckingLocation(true);
-
       // First check if we have permission
       const hasPermission = await checkLocationPermission();
       if (!hasPermission) {
@@ -254,102 +245,46 @@ const MarkAttendanceScreen = () => {
             }
           ]
         );
-        setIsCheckingLocation(false);
         return false;
       }
 
-      // Then try to enable location services
-      const locationEnabled = await promptEnableLocation();
-      if (!locationEnabled) {
+      // For Android, check if location is enabled without prompting
+      if (Platform.OS === 'android') {
+        try {
+          const isLocationEnabled = await RNAndroidLocationEnabler.isLocationEnabled({
+            interval: 10000,
+            fastInterval: 5000,
+          });
+          
+          if (!isLocationEnabled) {
             Alert.alert(
-          'Location Required',
-          'Please enable location services in your device settings to continue.',
+              'Location Required',
+              'Please enable location services in your device settings to continue.',
               [
                 { text: 'Cancel', style: 'cancel' },
                 { 
                   text: 'Open Settings',
-              onPress: () => {
-                Platform.OS === 'ios' 
-                  ? Linking.openURL('app-settings:')
-                  : Linking.openSettings();
-              }
+                  onPress: () => Linking.openSettings()
                 }
               ]
             );
-            setIsCheckingLocation(false);
             return false;
           }
+        } catch (error) {
+          console.log('Could not check location status, proceeding anyway:', error);
+        }
+      }
 
-      // Try to get current position with a shorter timeout
-      return new Promise((resolve) => {
-        const locationTimeout = setTimeout(() => {
-          if (retryCount < 1) { // Reduced retry count
-            console.log(`Location timeout, retrying... (${retryCount + 1})`);
-            resolve(checkLocationServices(retryCount + 1));
-          } else {
-            setLocationEnabled(false);
-            setIsCheckingLocation(false);
-            resolve(true); // Return true even if we can't get position immediately
-                  }
-        }, 5000); // Reduced timeout
-
-        Geolocation.getCurrentPosition(
-          (position) => {
-            clearTimeout(locationTimeout);
-            console.log('Location obtained:', position);
-            setLocationEnabled(true);
-            setIsCheckingLocation(false);
-            resolve(true);
-          },
-          (error) => {
-            clearTimeout(locationTimeout);
-            console.error('Location error:', error);
-            
-            // If we get an error but location is enabled, still proceed
-            if (locationEnabled) {
-              setLocationEnabled(true);
-              setIsCheckingLocation(false);
-              resolve(true);
-            } else if (retryCount < 1) {
-              console.log(`Location error, retrying... (${retryCount + 1})`);
-              resolve(checkLocationServices(retryCount + 1));
-            } else {
-              setLocationEnabled(true); // Set to true anyway if location is enabled
-              setIsCheckingLocation(false);
-              resolve(true);
-            }
-          },
-          { 
-            enableHighAccuracy: true, 
-            timeout: 5000, // Reduced timeout
-            maximumAge: 10000,
-            showLocationDialog: true
-          }
-        );
-      });
+      return true;
     } catch (error) {
       console.error('Error checking location services:', error);
-      setIsCheckingLocation(false);
-      // If location is enabled but we got an error, still return true
-      return true;
+      return false;
     }
   };
 
-  // Update the useEffect to not check location services immediately
-  useEffect(() => {
-    const initializeLocation = async () => {
-      // Only check permissions first
-      const hasPermission = await checkLocationPermission();
-      if (hasPermission) {
-        setLocationEnabled(true);
-      }
-    };
-    
-    initializeLocation();
-  }, []);
 
-  // Add new state for tracking steps
-  const [isStartingJourney, setIsStartingJourney] = useState(false);
+
+
 
   // Separate function to request location permission
   const requestLocationPermission = async () => {
@@ -374,31 +309,7 @@ const MarkAttendanceScreen = () => {
     }
   };
 
-  // Function to get a single location update with timeout
-  const getCurrentLocation = () => {
-    return new Promise((resolve, reject) => {
-      const timeoutId = setTimeout(() => {
-        reject(new Error('Location request timed out'));
-      }, 5000); // 5 second timeout
 
-      Geolocation.getCurrentPosition(
-        position => {
-          clearTimeout(timeoutId);
-          resolve(position);
-        },
-        error => {
-          clearTimeout(timeoutId);
-          reject(error);
-        },
-        {
-          enableHighAccuracy: false, // Changed to false for faster response
-          timeout: 5000, // Reduced timeout
-          maximumAge: 10000,
-          forceRequestLocation: true
-        }
-      );
-    });
-  };
 
   // Start journey handler
   const startJourneyHandler = async () => {
@@ -407,198 +318,56 @@ const MarkAttendanceScreen = () => {
       return;
     }
 
-    // Step 1: Check if we're already starting
-    if (isStartingJourney) {
-      Alert.alert('Please Wait', 'Journey start in progress...');
-      return;
-    }
-
-    setIsStartingJourney(true);
-    setShowLocationHistory(true);
-    setIsLoading(true);
+     // Check internet connection first
+  const isConnected = await checkInternetConnection();
+  if (!isConnected) {
+    Alert.alert(
+      'No Internet Connection',
+      'Please check your internet connection before starting a journey to ensure data is saved properly.',
+      [
+        { text: 'OK', onPress: () => console.log('OK Pressed') }
+      ]
+    );
+    return;
+  }
 
     try {
-      // Step 2: Request permission with user confirmation
-      Alert.alert(
-        'Start Journey',
-        'Would you like to start tracking your journey?',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-            onPress: () => setIsStartingJourney(false)
-          },
-          {
-            text: 'Start',
-            onPress: async () => {
-              try {
-                // Step 3: Request location permission
-                const hasPermission = await requestLocationPermission();
-                if (!hasPermission) {
-                  Alert.alert('Permission Denied', 'Location permission is required.');
-                  setIsStartingJourney(false);
-                  setIsLoading(false);
-                  return;
-                }
+      setIsLoading(true);
+      const locationReady = await checkLocationServices();
+      if (!locationReady) {
+        return;
+      }
 
-                // Step 4: Try to get current location with retry mechanism
-                let position = null;
-                let retryCount = 0;
-                const maxRetries = 2;
-
-                while (retryCount < maxRetries) {
-                  try {
-                    position = await getCurrentLocation();
-                    console.log('Initial position:', position);
-                    break;
-                  } catch (error) {
-                    console.log(`Location attempt ${retryCount + 1} failed:`, error);
-                    retryCount++;
-                    if (retryCount === maxRetries) {
-                      // If we have a previous location, use it
-                      if (prevLocationRef.current) {
-                        position = {
-                          coords: {
-                            latitude: prevLocationRef.current.latitude,
-                            longitude: prevLocationRef.current.longitude
-                          }
-                        };
-                        console.log('Using last known location:', position);
-                      } else {
-                        throw new Error('Unable to get location after multiple attempts');
-                      }
-                    } else {
-                      await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                  }
-                }
-
-                if (!position) {
-                  throw new Error('Could not get location');
-                }
-
-                // Set start location
-                setStartLocation({
-                  latitude: position.coords.latitude,
-                  longitude: position.coords.longitude,
-                  time: "0"
-                });
-
-                // Step 5: Initialize tracking state
-                setAccumulatedDistance(0);
-                prevLocationRef.current = null;
-                setCurrentPath([]);
-                setJourneyStartTime(new Date());
-
-                // Step 6: Clear existing watch
-                if (watchId.current !== null) {
-                  Geolocation.clearWatch(watchId.current);
-                  watchId.current = null;
-                }
-
-                // Step 7: Start location tracking with optimized settings
-                watchId.current = Geolocation.watchPosition(
-                  (pos) => {
-                    const { latitude, longitude, accuracy, speed } = pos.coords;
-                    console.log('Location update:', { latitude, longitude, accuracy, speed });
-                    
-                    // Relaxed accuracy threshold for debugging
-                    if (accuracy > 200) {
-                      console.log('Skipping low accuracy reading:', accuracy);
-                      return;
-                    }
-                    
-                    // Check if this is a valid location update
-                    if (!isValidLocationUpdate(pos, lastValidLocation)) {
-                      console.log('Skipping invalid location update');
-                      return;
-                    }
-                    
-                    // Calculate distance if we have a previous location
-                    if (lastValidLocation) {
-                      const distance = getDrivingDistance(
-                        lastValidLocation.coords,
-                        { latitude, longitude }
-                      );
-                      console.log('Calculated distance:', distance);
-                      // Lowered threshold for debugging
-                      if (distance > 0.1) {
-                        setAccumulatedDistance(prev => {
-                          const newTotal = prev + distance;
-                          console.log('Distance added:', {
-                            distance,
-                            total: newTotal,
-                            accuracy,
-                            speed
-                          });
-                          return newTotal;
-                        });
-                      } else {
-                        console.log('Distance too small to add:', distance);
-                      }
-                    }
-                    // Always update lastValidLocation
-                    setLastValidLocation(pos);
-                    
-                    // Update path with more detailed information
-                    setCurrentPath(prev => [...prev, {
-                      latitude,
-                      longitude,
-                      time: new Date().toLocaleTimeString(),
-                      accuracy,
-                      speed: speed || 0,
-                      timestamp: pos.timestamp
-                    }]);
-                  },
-                  (error) => {
-                    console.log('Watch position error:', error);
-                    Alert.alert(
-                      'Tracking Error',
-                      'Error updating location. Continue anyway?',
-                      [
-                        { 
-                          text: 'Stop',
-                          onPress: () => {
-                            if (watchId.current !== null) {
-                              Geolocation.clearWatch(watchId.current);
-                              watchId.current = null;
-                            }
-                            setJourneyStartTime(null);
-                          }
-                        },
-                        { text: 'Continue', style: 'cancel' }
-                      ]
-                    );
-                  },
-                  {
-                    enableHighAccuracy: true,
-                    distanceFilter: 0, // Allow all updates
-                    interval: 2000,
-                    fastestInterval: 1000,
-                    forceRequestLocation: true,
-                    showLocationDialog: true
-                  }
-                );
-
-                setIsLoading(false);
-                Alert.alert('Success', 'Journey tracking started successfully.');
-              } catch (error) {
-                console.error('Error in journey start process:', error);
-                Alert.alert('Error', 'Failed to start journey. Please try again.');
-                setIsLoading(false);
-              } finally {
-                setIsStartingJourney(false);
-              }
-            }
+      // Get current position (ONCE)
+      Geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          setGpsAccuracy(accuracy || null);
+          if (typeof latitude !== 'number' || typeof longitude !== 'number' ||
+            isNaN(latitude) || isNaN(longitude)) {
+            Alert.alert('Error', 'Could not get valid starting location.');
+            return;
           }
-        ],
-        { cancelable: true }
+
+          console.log('Starting journey at:', latitude, longitude);
+          // Save to asyncstorage
+          await AsyncStorage.setItem('journeyStartCoords', JSON.stringify({ latitude, longitude }));
+          await AsyncStorage.setItem('activeJourneyStartTime', new Date().toISOString());
+          setStartCoords({ latitude, longitude });
+          setJourneyStartTime(new Date());
+          setRouteDistance(null); // clear last route
+          Alert.alert('Success', 'Journey started successfully!');
+          setIsLoading(false); // Hide loader
+        },
+        (error) => {
+          console.error('Error getting start location:', error);
+          Alert.alert('Location Error', 'Failed to get start location.');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } catch (error) {
-      console.error('Error in startJourneyHandler:', error);
-      setIsStartingJourney(false);
-      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
-      setIsLoading(false);
+      Alert.alert('Error', 'Failed to start journey. Please try again.');
+      setJourneyStartTime(null);
     }
   };
 
@@ -607,6 +376,19 @@ const MarkAttendanceScreen = () => {
       Alert.alert('No Active Journey', 'There is no active journey to stop.');
       return;
     }
+
+     // Check internet connection first
+  const isConnected = await checkInternetConnection();
+  if (!isConnected) {
+    Alert.alert(
+      'No Internet Connection',
+      'Please check your internet connection before stopping the journey to ensure data is saved properly.',
+      [
+        { text: 'OK', onPress: () => console.log('OK Pressed') }
+      ]
+    );
+    return;
+  }
 
     Alert.alert(
       'Stop Journey',
@@ -621,213 +403,156 @@ const MarkAttendanceScreen = () => {
           text: 'Stop',
           style: 'destructive',
           onPress: async () => {
-            try {
-              setShowLocationHistory(true);
-              setIsLoading(true); // Show loading
-              // Calculate journey duration
-              const endTime = new Date();
-              const duration = Math.round((endTime.getTime() - journeyStartTime.getTime()) / 1000); // in seconds
-              const minutes = Math.floor(duration / 60);
-              const seconds = duration % 60;
-              const formattedDuration = `${minutes}m ${seconds}s`;
+    try {
+      setIsLoading(true);
+      // Get current end position (ONCE)
+      Geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude: endLat, longitude: endLng, accuracy } = position.coords;
+          setGpsAccuracy(accuracy || null);
+          if (typeof endLat !== 'number' || typeof endLng !== 'number' ||
+            isNaN(endLat) || isNaN(endLng)) {
+            Alert.alert('Error', 'Could not get valid ending location.');
+            return;
+          }
+          console.log('Ending journey at:', endLat, endLng);
+          setEndCoords({ latitude: endLat, longitude: endLng });
 
-              // Get current location for stop point
-              let currentLocation = null;
-              let retryCount = 0;
-              const maxRetries = 3;
+          // Get start coords from AsyncStorage
+          const startCoordsString = await AsyncStorage.getItem('journeyStartCoords');
+          if (!startCoordsString) {
+            Alert.alert('Error', 'Start location not found.');
+            return;
+          }
+          const { latitude: startLat, longitude: startLng } = JSON.parse(startCoordsString);
 
-              while (retryCount < maxRetries) {
-                try {
-                  currentLocation = await new Promise((resolve, reject) => {
-                    Geolocation.getCurrentPosition(
-                      (position) => {
-                        resolve(position);
-                      },
-                      (error) => {
-                        reject(error);
-                      },
-                      {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0,
-                        forceRequestLocation: true
-                      }
-                    );
-                  });
-                  
-                  // Set stop location when obtained
-                  const stopLoc = {
-                    latitude: currentLocation.coords.latitude,
-                    longitude: currentLocation.coords.longitude,
-                    time: formattedDuration
-                  };
-                  setStopLocation(stopLoc);
+          // Call OpenRouteService API for route distance
+          const coordinates = [[startLng, startLat], [endLng, endLat]]; // [lng, lat] format
+          const orsUrl = 'https://api.openrouteservice.org/v2/directions/driving-car/json';
 
-                  // Log the driving distance between start and stop
-                  if (startLocation && stopLoc) {
-                    try {
-                      setIsLoading(true);
-                      const drivingDistance = await getDrivingDistance(startLocation, stopLoc);
-                      console.log('Driving distance (getDrivingDistance) between start and stop:', drivingDistance, 'km');
-                    } catch (e) {
-                      console.error('Error getting driving distance:', e);
-                    } finally {
-                      setIsLoading(false);
-                    }
-                  }
-
-                  // Add current journey to history
-                  const currentJourney = {
-                    startLocation: {
-                      ...startLocation,
-                      time: "0"
-                    },
-                    stopLocation: stopLoc,
-                    duration: formattedDuration,
-                    path: journeyInfo.path,
-                    startTime: journeyStartTime,
-                    endTime: endTime
-                  };
-                  setJourneyHistory(prev => [...prev, currentJourney]);
-                  break;
-                } catch (error) {
-                  console.log(`Location attempt ${retryCount + 1} failed:`, error);
-                  retryCount++;
-                  if (retryCount === maxRetries) {
-                    if (prevLocationRef.current) {
-                      currentLocation = {
-                        coords: {
-                          latitude: prevLocationRef.current.latitude,
-                          longitude: prevLocationRef.current.longitude
-                        }
-                      };
-                      const stopLoc = {
-                        latitude: prevLocationRef.current.latitude,
-                        longitude: prevLocationRef.current.longitude,
-                        time: formattedDuration
-                      };
-                      setStopLocation(stopLoc);
-
-                      // Add current journey to history with last known location
-                      const currentJourney = {
-                        startLocation: {
-                          ...startLocation,
-                          time: "0"
-                        },
-                        stopLocation: stopLoc,
-                        duration: formattedDuration,
-                        path: journeyInfo.path,
-                        startTime: journeyStartTime,
-                        endTime: endTime
-                      };
-                      setJourneyHistory(prev => [...prev, currentJourney]);
-                      console.log('Using last known location:', currentLocation);
-                    } else {
-                      throw new Error('Unable to get location after multiple attempts');
-                    }
-                  } else {
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                  }
-                }
-              }
-
-              // Get latest user details
-              const currentDetails = await getUserDetails();
-              if (!currentDetails?.empId || !currentDetails?.token) {
-                setIsLoading(false);
-                console.error('Employee ID or token not found in current details:', currentDetails);
-                Alert.alert('Error', 'Authentication failed. Please login again.');
-                navigation.reset({
-                  index: 0,
-                  routes: [{ name: 'Login' }],
-                });
-                return;
-              }
-
-              // Update state if needed
-              if (JSON.stringify(currentDetails) !== JSON.stringify(userDetails)) {
-                console.log('Updating user details state with latest data');
-                setUserDetails(currentDetails);
-              }
-
-              // Use the current details for the API call
-              const effectiveDetails = currentDetails;
-
-              // Log the current state for debugging
-              console.log('Current Location:', currentLocation.coords);
-              console.log('School ID:', dropdownValue);
-              console.log('Distance:', accumulatedDistance / 1000);
-              console.log('Image:', uploadedImage);
-              console.log('Address:', address);
-              console.log('Employee ID:', effectiveDetails.empId);
-
-              const formData = new FormData();
-              formData.append('EmpID', effectiveDetails.empId);
-              formData.append('Latitude', stopLocation?.latitude || '');
-              formData.append('Longitude', stopLocation?.longitude || '');
-              formData.append('KM', (accumulatedDistance / 1000).toFixed(2));
-              formData.append('ConcernedParty', categoryValue || '');
-              formData.append('Location', dropdownValue || '');
-              formData.append('Address', address || '');
-
-              console.log('Form Data:', formData);
-
-              if (uploadedImage) {
-                formData.append('EPhoto', {
-                  uri: uploadedImage,
-                  name: 'photo.jpg',
-                  type: 'image/jpeg',
-                });
-              }
-
-              try {
-                const response = await fetch(`${BASE_URL}${ENDPOINTS.ADD_EPUNCH_RECORD}`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'multipart/form-data',
-                    Authorization: `Bearer ${effectiveDetails.token}`,
-                  },
-                  body: formData,
-                });
-                const data = await response.json();
-                console.log('API Response:', data);
-
-                if (data.code === 1) {
-                  await clearActiveJourney();
-                  Alert.alert('Success', 'Attendance marked successfully.', [
-                    {
-                      text: 'OK',
-                      onPress: () => {
-                        // Reset all relevant state
-                        setJourneyStartTime(null);
-                        setAccumulatedDistance(0);
-                        setCurrentPath([]);
-                        setUploadedImage(null);
-                        setAddress('');
-                        setDropdownValue(null);
-                        setCategoryValue(null);
-                        setStartLocation(null);
-                        setStopLocation(null);
-                        setJourneyHistory([]);
-                        setShowLocationHistory(false);
-
-                        // Navigate to home screen
-                        navigation.navigate('Home');
-                      },
-                    },
-                  ]);
-                } else {
-                  Alert.alert('Error', data.msg || 'Failed to mark attendance.');
-                }
-              } catch (apiErr) {
-                Alert.alert('Error', 'Failed to mark attendance. Please try again.');
-              }
-            } catch (error) {
-              console.error('Error stopping journey:', error);
-              Alert.alert('Error', 'Failed to stop journey. Please try again.');
-            } finally {
-              setIsLoading(false);
+          let distanceKm = 0;
+          try {
+            const res = await fetch(orsUrl, {
+              method: 'POST',
+              headers: {
+                'Authorization': ORS_API_KEY,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ coordinates }),
+            });
+            if (!res.ok) {
+              throw new Error(`ORS API error: HTTP ${res.status}`);
             }
+            const data = await res.json();
+            const distanceMeters = data.routes?.[0]?.summary?.distance ?? 0;
+            distanceKm = distanceMeters / 1000;
+            console.log('Route distance from ORS:', distanceKm, 'km');
+            setRouteDistance(distanceKm);
+            setIsLoading(false);
+          } catch (apiErr) {
+            // Set as zero on error, or keep as previous
+            setRouteDistance(0);
+            Alert.alert('Warning', 'Could not get route distance from OpenRouteService.');
+          }
+
+          // Calculate journey duration
+          const journeyEndTime = new Date();
+          const timeTaken = journeyStartTime
+            ? `${Math.round(
+              (journeyEndTime.getTime() - journeyStartTime.getTime()) / 1000,
+            )} sec`
+            : 'N/A';
+
+          // Get latest user details
+          const currentDetails = await getUserDetails();
+          if (!currentDetails?.empId || !currentDetails?.token) {
+            console.error('Employee ID or token not found in current details:', currentDetails);
+            Alert.alert('Error', 'Authentication failed. Please login again.');
+            navigation.reset({
+              index: 0,
+              routes: [{ name: 'Login' }],
+            });
+            return;
+          }
+
+          // Log the current state for debugging
+          console.log('Current Location:', position.coords);
+          console.log('School ID:', dropdownValue);
+          console.log('Distance:', distanceKm);
+          console.log('Image:', uploadedImage);
+          console.log('Address:', address);
+          console.log('Employee ID:', currentDetails.empId);
+
+          const formData = new FormData();
+          formData.append('EmpID', currentDetails.empId);
+          formData.append('Latitude', endLat.toString());
+          formData.append('Longitude', endLng.toString());
+          formData.append('KM', distanceKm.toFixed(2));
+          formData.append('ConcernedParty', categoryValue || '');
+          formData.append('Location', dropdownValue || '');
+          formData.append('Address', address || '');
+
+          console.log('Form Data:', formData);
+
+          if (uploadedImage) {
+            formData.append('EPhoto', {
+              uri: uploadedImage,
+              name: 'photo.jpg',
+              type: 'image/jpeg',
+            });
+          }
+
+          try {
+            const response = await fetch(`${BASE_URL}${ENDPOINTS.ADD_EPUNCH_RECORD}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'multipart/form-data',
+                Authorization: `Bearer ${currentDetails.token}`,
+              },
+              body: formData,
+            });
+            const data = await response.json();
+            console.log('API Response:', data);
+
+            if (data.code === 1) {
+              await clearActiveJourney();
+              await AsyncStorage.removeItem('journeyStartCoords');
+              await AsyncStorage.removeItem('activeJourneyStartTime');
+              Alert.alert('Success', 'Attendance marked successfully.', [
+                {
+                  text: 'OK',
+                  onPress: () => {
+                    // Reset all relevant state
+                    setJourneyStartTime(null);
+                    setRouteDistance(null);
+                    setUploadedImage(null);
+                    setAddress('');
+                    setDropdownValue(null);
+                    setCategoryValue(null);
+                    setStartCoords({ latitude: null, longitude: null });
+                    setEndCoords({ latitude: null, longitude: null });
+
+                    // Navigate to home screen
+                    navigation.navigate('Home');
+                  },
+                },
+              ]);
+            } else {
+              Alert.alert('Error', data.msg || 'Failed to mark attendance.');
+            }
+          } catch (apiErr) {
+            Alert.alert('Error', 'Failed to mark attendance. Please try again.');
+          }
+        },
+        (error) => {
+          console.error('Error getting end location:', error);
+          Alert.alert('Location Error', 'Failed to get end location.');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    } catch (error) {
+      Alert.alert('Error', 'Failed to stop journey. Please try again.');
+    }
           },
         },
       ],
@@ -923,7 +648,7 @@ const MarkAttendanceScreen = () => {
       return {
         date: journeyStartTime.toLocaleDateString(),
         time: currentTime,
-        kilometers: (accumulatedDistance / 1000).toFixed(2),
+        kilometers: routeDistance !== null ? routeDistance.toFixed(2) : '0.00',
         path: currentPath,
       };
     } else if (journeys.length > 0) {
@@ -951,6 +676,11 @@ const MarkAttendanceScreen = () => {
   };
 
   const journeyInfo = getJourneyInfo();
+
+  // Update journey info when routeDistance changes
+  useEffect(() => {
+    // This will trigger a re-render when routeDistance changes
+  }, [routeDistance]);
 
   // Function to get user details that can be called from anywhere
   const getUserDetails = async () => {
@@ -1117,7 +847,7 @@ const MarkAttendanceScreen = () => {
     };
 
     initializeUserDetails();
-  }, []);
+  }, [navigation]);
 
   // Fetch locations when component mounts
   useEffect(() => {
@@ -1131,7 +861,7 @@ const MarkAttendanceScreen = () => {
     return () => {
       unsubscribe();
     };
-  }, []);
+  }, [navigation]);
 
   // Update useEffect for time updates
   useEffect(() => {
@@ -1167,7 +897,7 @@ const MarkAttendanceScreen = () => {
         setJourneyStartTime(data.journeyStartTime ? new Date(data.journeyStartTime) : null);
         setStartLocation(data.startLocation);
         setCurrentPath(data.currentPath || []);
-        setAccumulatedDistance(data.accumulatedDistance || 0);
+
         setCategoryValue(data.categoryValue || null);
         setDropdownValue(data.dropdownValue || null);
         setAddress(data.address || '');
@@ -1185,7 +915,7 @@ const MarkAttendanceScreen = () => {
         journeyStartTime,
         startLocation,
         currentPath,
-        accumulatedDistance,
+
         categoryValue,
         dropdownValue,
         address,
@@ -1197,7 +927,7 @@ const MarkAttendanceScreen = () => {
     journeyStartTime,
     startLocation,
     currentPath,
-    accumulatedDistance,
+
     categoryValue,
     dropdownValue,
     address,
@@ -1319,33 +1049,7 @@ const MarkAttendanceScreen = () => {
     return '00:00:00';
   };
 
-  // Add function to validate location updates
-  const isValidLocationUpdate = (newLocation, lastLocation) => {
-    if (!lastLocation) return true;
-    
-    const timeDiff = new Date(newLocation.timestamp) - new Date(lastLocation.timestamp);
-    
-    // Skip validation if time difference is too small (less than 1 second)
-    if (timeDiff < 1000) {
-      return true;
-    }
-    
-    const distance = getDrivingDistance(
-      lastLocation.coords,
-      newLocation.coords
-    );
-    
-    // Calculate speed in km/h
-    const speed = (distance / 1000) / (timeDiff / 3600000);
-    
-    // Reject updates that would require unrealistic speeds (> 300 km/h for more flexibility)
-    if (speed > 300) {
-      console.log('Rejected update - unrealistic speed:', speed, 'km/h');
-      return false;
-    }
-    
-    return true;
-  };
+
 
   return (
     <ImageBackground style={{flex:1}} source={require('../assets/images/Background.png')} >
