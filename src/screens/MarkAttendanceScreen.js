@@ -29,9 +29,6 @@ import RNAndroidLocationEnabler from 'react-native-android-location-enabler';
 import { ENDPOINTS, BASE_URL } from '../utils/apiConfig';
 import axios from 'axios';
 
-
-
-
 const AUTH_TOKEN_KEY = '@auth_token';
 const LOGIN_STATUS_KEY = '@login_status';
 
@@ -193,6 +190,7 @@ const MarkAttendanceScreen = () => {
   const [userDetails, setUserDetails] = useState(null);
   const [startLocation, setStartLocation] = useState(null);
   const [journeyHistory, setJourneyHistory] = useState([]);
+
   
   // Add ref to cache user details
   const userDetailsRef = useRef(null);
@@ -217,6 +215,8 @@ const MarkAttendanceScreen = () => {
   const [startCoords, setStartCoords] = useState({ latitude: null, longitude: null });
   const [endCoords, setEndCoords] = useState({ latitude: null, longitude: null });
   const [routeDistance, setRouteDistance] = useState(null);
+  const [isDropdownActive, setIsDropdownActive] = useState(false);
+
 
   useEffect(() => {
     if (route.params?.newJourney) {
@@ -293,9 +293,6 @@ const checkInternetConnection = async () => {
     }
     return true; // iOS handled differently
   };
-
-  // Add new state for location status
-  const [locationEnabled, setLocationEnabled] = useState(false);
 
 
 
@@ -383,6 +380,8 @@ const checkInternetConnection = async () => {
 
   // Start journey handler
   const startJourneyHandler = async () => {
+      setIsDropdownActive(true);
+
     if (journeyStartTime !== null) {
       Alert.alert('Journey Active', 'Please stop the current journey before starting a new one.');
       return;
@@ -519,6 +518,7 @@ const checkInternetConnection = async () => {
             console.log('Route distance from ORS:', distanceKm, 'km');
             setRouteDistance(distanceKm);
             setIsLoading(false);
+            setIsDropdownActive(false);
           } catch (apiErr) {
             // Set as zero on error, or keep as previous
             setRouteDistance(0);
@@ -1237,7 +1237,8 @@ const checkInternetConnection = async () => {
             <TouchableOpacity
               style={styles.dropdown}
               activeOpacity={0.7}
-              onPress={() => setOpenDropdown(openDropdown === 'category' ? null : 'category')}
+              onPress={() =>!isDropdownActive && setOpenDropdown(openDropdown === 'category' ? null : 'category')}
+              disabled={isDropdownActive}
             >
               <Text style={[styles.inputText, categoryValue ? styles.inputFilled : {}]}>
                 {categoryValue 
@@ -1292,17 +1293,20 @@ const checkInternetConnection = async () => {
             <TouchableOpacity
               style={styles.dropdown}
               activeOpacity={0.7}
-              onPress={() => setOpenDropdown(openDropdown === 'school' ? null : 'school')}
+              onPress={() =>!isDropdownActive && setOpenDropdown(openDropdown === 'school' ? null : 'school')}
+                disabled={isDropdownActive}
             >
               <Text style={[styles.inputText, dropdownValue ? styles.inputFilled : {}]}>
                 {dropdownValue 
                   ? (dropdownValue === 'others' ? 'Others' : schools.find(s => s.SCODE === dropdownValue)?.SNAME)
                   : "Select Location"}
               </Text>
-              <Image 
-                source={DROPDOWN_ICON} 
-                style={[styles.dropdownIcon, openDropdown === 'school' && { transform: [{ rotate: '180deg' }] }]} 
-              />
+              {!isDropdownActive && (
+    <Image 
+      source={DROPDOWN_ICON} 
+      style={[styles.dropdownIcon, openDropdown === 'school' && { transform: [{ rotate: '180deg' }] }]} 
+    />
+  )}
             </TouchableOpacity>
             {isLoading ? (
               <Text style={styles.dropdownHelperText}>
@@ -1408,7 +1412,7 @@ const checkInternetConnection = async () => {
                   }}>
                     {displayAddress}
                   </Text>
-                  {dropdownValue && (
+                  {dropdownValue && !isDropdownActive &&  (
                     <TouchableOpacity
                       onPress={() => {
                         setTempAddress(address || '');
