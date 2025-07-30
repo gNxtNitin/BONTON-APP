@@ -29,10 +29,10 @@ const ReportCard = ({ item, reportType }) => {
     if (reportType === 'punching') {
       return [
         { label: 'Punching Date', value: moment(item.PUNCHDATETIME).format('DD-MM-YYYY HH:mm:ss') },
-        { label: 'Employee Id', value: item.EMPID },
+        // { label: 'Employee Id', value: item.EMPID },
         { label: 'Name', value: item.ENAME },
-        { label: 'Zone', value: item.ZONE },
-        { label: 'School Name', value: item.LOCATION },
+        // { label: 'Zone', value: item.ZONE },
+        // { label: 'School Name', value: item.LOCATION },
         { label: 'Address', value: item.ADDRESS || 'N/A' },
         { label: 'KM', value: item.KM ? item.KM.toFixed(2) : '0.00' },
       ];
