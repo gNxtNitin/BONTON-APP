@@ -86,7 +86,19 @@ const LoginScreen = ({ navigation }) => {
         // if (setAuthToken) setAuthToken(userDetails.token); // This line was not in the new_code, so it's removed.
         navigation.replace('PinSetup');
       } else {
-        Alert.alert('Login Failed', data?.msg || 'Invalid credentials or server error.');
+        Alert.alert(
+  'Login Failed',
+  data?.msg || 'Invalid credentials or server error.',
+  [
+    {
+      text: 'OK',
+      onPress: () => {
+        setPassword('');
+      },
+    },
+  ],
+  { cancelable: false }
+);
       }
     } catch (error) {
       console.error('Login error:', error);
