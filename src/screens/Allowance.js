@@ -49,6 +49,27 @@ export default function AllowanceScreen() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [isImageViewVisible, setIsImageViewVisible] = useState(false);
 
+  const [errors, setErrors] = useState({
+  fromDate: false,
+  toDate: false,
+  kilometers: false,
+  daAmount: false,
+});
+
+// Create validation function
+const validateForm = () => {
+  const newErrors = {
+    fromDate: !fromDate,
+    toDate: !toDate,
+    kilometers: !kilometers || parseFloat(kilometers) <= 0,
+    daAmount: !daAmount || parseFloat(daAmount) <= 0,
+  };
+  
+  setErrors(newErrors);
+  
+  return !Object.values(newErrors).some(error => error);
+};
+
   const getKMValueByDateRange = async (from, to) => {
     try {
       if (!from || !to || !userDetails?.empId) return;
@@ -148,7 +169,46 @@ export default function AllowanceScreen() {
     setDescriptions(newDescriptions);
   };
 
+  // Create a utility function to validate the amount input
+const validateAmountInput = (text, setValue) => {
+  // Remove any non-digit or non-decimal characters
+  let numericValue = text.replace(/[^0-9.]/g, '');
+  
+  // Split into parts before and after decimal
+  const parts = numericValue.split('.');
+  
+  // If there's more than one decimal point, ignore the input
+  if (parts.length > 2) {
+    return;
+  }
+  
+  // Check part before decimal (integer part)
+  if (parts[0] && parts[0].length > 6) {
+    // Limit to 6 digits
+    parts[0] = parts[0].substring(0, 6);
+  }
+  
+  // Check part after decimal (fractional part)
+  if (parts[1] && parts[1].length > 2) {
+    // Limit to 2 digits
+    parts[1] = parts[1].substring(0, 2);
+  }
+  
+  // Reconstruct the value
+  numericValue = parts[0];
+  if (parts[1]) {
+    numericValue += '.' + parts[1];
+  }
+  
+  setValue(numericValue);
+};
+
   const handleSubmit = async () => {
+
+      if (!validateForm()) {
+    Alert.alert(' Error', 'Please Enter all mandatory fields before submitting');
+    return;
+  }
     try {
       setIsLoading(true);
 
@@ -389,16 +449,7 @@ export default function AllowanceScreen() {
         <CustomInput
           label="DA Amount"
           value={daAmount}
-          onChangeText={(text) => {
-            // Only allow numbers and decimal point
-            const numericValue = text.replace(/[^0-9.]/g, '');
-            // Ensure only one decimal point
-            const parts = numericValue.split('.');
-            if (parts.length > 2) {
-              return;
-            }
-            setDaAmount(numericValue);
-          }}
+      onChangeText={(text) => validateAmountInput(text, setDaAmount)}
           placeholder="Enter DA amount"
           keyboardType="decimal-pad"
           required={true}
@@ -407,16 +458,7 @@ export default function AllowanceScreen() {
         <CustomInput
           label="Hotel"
           value={hotel}
-          onChangeText={(text) => {
-            // Only allow numbers and decimal point
-            const numericValue = text.replace(/[^0-9.]/g, '');
-            // Ensure only one decimal point
-            const parts = numericValue.split('.');
-            if (parts.length > 2) {
-              return;
-            }
-            setHotel(numericValue);
-          }}
+      onChangeText={(text) => validateAmountInput(text, setHotel)}
           placeholder="Enter hotel amount"
           keyboardType="decimal-pad"
         />
@@ -424,16 +466,7 @@ export default function AllowanceScreen() {
         <CustomInput
           label="Others"
           value={others}
-          onChangeText={(text) => {
-            // Only allow numbers and decimal point
-            const numericValue = text.replace(/[^0-9.]/g, '');
-            // Ensure only one decimal point
-            const parts = numericValue.split('.');
-            if (parts.length > 2) {
-              return;
-            }
-            setOthers(numericValue);
-          }}
+       onChangeText={(text) => validateAmountInput(text, setOthers)}
           placeholder="Enter other amount"
           keyboardType="decimal-pad"
         />
