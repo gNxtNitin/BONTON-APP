@@ -95,6 +95,7 @@ const getDrivingDistance = async (start, end) => {
 
 // Helpers for persistent journey state
 const ACTIVE_JOURNEY_KEY = 'activeJourney';
+const JOURNEY_HISTORY_KEY = 'journeyHistory';
 
 const saveActiveJourney = async (data) => {
   try {
@@ -119,6 +120,66 @@ const clearActiveJourney = async () => {
     await AsyncStorage.removeItem(ACTIVE_JOURNEY_KEY);
   } catch (e) {
     console.error('Failed to clear active journey:', e);
+  }
+};
+
+const saveJourneyHistory = async (journeyData) => {
+  try {
+    const storedData = await AsyncStorage.getItem(JOURNEY_HISTORY_KEY);
+    let journeys = storedData ? JSON.parse(storedData) : [];
+    
+    // Add new journey to the beginning of the array
+    journeys.unshift(journeyData);
+    
+    // Keep only the latest 10 journeys
+    if (journeys.length > 10) {
+      journeys = journeys.slice(0, 10);
+    }
+    
+    await AsyncStorage.setItem(JOURNEY_HISTORY_KEY, JSON.stringify(journeys));
+  } catch (e) {
+    console.error('Failed to save journey history:', e);
+  }
+};
+
+const loadJourneyHistory = async () => {
+  try {
+    const storedData = await AsyncStorage.getItem(JOURNEY_HISTORY_KEY);
+    return storedData ? JSON.parse(storedData) : [];
+  } catch (e) {
+    console.error('Failed to load journey history:', e);
+    return [];
+  }
+};
+
+const clearJourneyHistory = async () => {
+  try {
+    await AsyncStorage.removeItem(JOURNEY_HISTORY_KEY);
+  } catch (e) {
+    console.error('Failed to clear journey history:', e);
+  }
+};
+
+const checkAndClearMidnight = async () => {
+  const now = new Date();
+  const lastClearStr = await AsyncStorage.getItem('lastJourneyHistoryClear');
+  
+  if (lastClearStr) {
+    const lastClear = new Date(lastClearStr);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const lastClearDay = new Date(lastClear.getFullYear(), lastClear.getMonth(), lastClear.getDate());
+    
+    // If last clear was before today, clear the history
+    if (lastClearDay < today) {
+      await clearJourneyHistory();
+      await AsyncStorage.setItem('lastJourneyHistoryClear', now.toISOString());
+      return true;
+    }
+    return false;
+  } else {
+    // First time, just set the last clear date
+    await AsyncStorage.setItem('lastJourneyHistoryClear', now.toISOString());
+    return false;
   }
 };
 
@@ -189,6 +250,19 @@ const MarkAttendanceScreen = () => {
       }
     };
     loadActiveJourney();
+  }, []);
+
+  useEffect(() => {
+    const initializeJourneyHistory = async () => {
+      // Check if we need to clear at midnight
+      await checkAndClearMidnight();
+      
+      // Load journey history
+      const history = await loadJourneyHistory();
+      setJourneyHistory(history);
+    };
+    
+    initializeJourneyHistory();
   }, []);
 
   const checkLocationPermission = async () => {
@@ -501,6 +575,29 @@ const MarkAttendanceScreen = () => {
               type: 'image/jpeg',
             });
           }
+
+          // Save journey data to history
+          const journeyData = {
+            startLocation: {
+              longitude: startLat,
+              latitude: startLng,
+              time: journeyStartTime.toISOString()
+            },
+            stopLocation: {
+              longitude: endLat,
+              latitude: endLng,
+              time: new Date().toISOString()
+            }
+          };
+
+          // Save to journey history
+          await saveJourneyHistory(journeyData);
+
+          // Update the state
+          setJourneyHistory(prevHistory => {
+            const updatedHistory = [journeyData, ...prevHistory];
+            return updatedHistory.slice(0, 10); // Keep only 10 most recent
+          });
 
           try {
             const response = await fetch(`${BASE_URL}${ENDPOINTS.ADD_EPUNCH_RECORD}`, {
@@ -1504,22 +1601,21 @@ const MarkAttendanceScreen = () => {
           )} */}
 
           {/* Location Change History Table */}
-          {showLocationHistory && (
-            <View
-              style={{
-                width: '100%',
-                backgroundColor: '#C6F1F7',
-                borderRadius: 10,
-                marginBottom: 12,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.08,
-                shadowRadius: 4,
-                elevation: 2,
-                overflow: 'hidden',
-                marginVertical: 12,
-              }}
-            >
+          <View
+            style={{
+              width: '100%',
+              backgroundColor: '#C6F1F7', 
+              borderRadius: 10,
+              marginBottom: 12,
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.08,
+              shadowRadius: 4,
+              elevation: 2,
+              overflow: 'hidden',
+              marginVertical: 12,
+            }}
+          >
               {/* Table Title */}
               <Text
                 style={{
@@ -2101,4 +2197,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default MarkAttendanceScreen; 
+export default MarkAttendanceScreen;
