@@ -29,16 +29,7 @@ import RNAndroidLocationEnabler from 'react-native-android-location-enabler';
 import { ENDPOINTS, BASE_URL } from '../utils/apiConfig';
 import axios from 'axios';
 
-// Add this utility function at the top of your file (after imports)
-const checkInternetConnection = async () => {
-  try {
-    const response = await fetch('https://www.google.com', { method: 'HEAD' });
-    return response.ok;
-  } catch (error) {
-    console.error('Internet check failed:', error);
-    return false;
-  }
-};
+
 
 
 const AUTH_TOKEN_KEY = '@auth_token';
@@ -257,6 +248,19 @@ const MarkAttendanceScreen = () => {
     initializeJourneyHistory();
   }, []);
 
+  // Add this utility function at the top of your file (after imports)
+const checkInternetConnection = async () => {
+  try {
+    setIsLoading(true);
+    const response = await fetch('https://www.google.com', { method: 'HEAD' });
+    setIsLoading(false);
+    return response.ok;
+  } catch (error) {
+    console.error('Internet check failed:', error);
+    setIsLoading(false)
+    return false;
+  }
+};
   const checkLocationPermission = async () => {
     if (Platform.OS === 'android') {
       try {
@@ -1786,12 +1790,12 @@ const MarkAttendanceScreen = () => {
             >
               <Text style={styles.modalButtonText}>Take Photo</Text>
             </TouchableOpacity>
-            <TouchableOpacity 
+            {/* <TouchableOpacity 
               style={styles.modalButton}
               onPress={handleGalleryPress}
             >
               <Text style={styles.modalButtonText}>Choose from Gallery</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity 
               style={[styles.modalButton, styles.cancelButton]}
               onPress={() => setShowImageOptions(false)}
@@ -1814,7 +1818,28 @@ const MarkAttendanceScreen = () => {
           alignItems: 'center',
           zIndex: 9999,
         }}>
-          <ActivityIndicator size="large" color="#014B6E" />
+          <View style={{
+            backgroundColor: Colors.placeholderTextColor,
+            padding: 20,
+            borderRadius: 10,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 3.84,
+            elevation: 5,
+          }}>
+            <ActivityIndicator size="large" color="#014B6E" />
+            <Text style={{
+              marginTop: 10,
+              color: '#014B6E',
+              fontSize: 14,
+              fontFamily: 'Montserrat-Regular',
+              textAlign: 'center'
+            }}>
+              Fetching coordinates please wait
+            </Text>
+          </View>
         </View>
       )}
     </ImageBackground>
