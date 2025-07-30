@@ -16,13 +16,10 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
-import CustomDropdown from '../components/CustomDropdown';
 import IconButton from '../components/IconButton';
 import { Colors } from '../constatnst/Colors';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Geolocation from 'react-native-geolocation-service';
-import GradientBackground from '../components/GradientBackground';
-import { images } from '../constants/images';
 import * as ImagePicker from 'react-native-image-picker';
 import CustomHeader from '../components/CustomHeader';
 import CustomToast from '../components/CustomToast';
@@ -202,14 +199,9 @@ const MarkAttendanceScreen = () => {
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [address, setAddress] = useState('');
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [userDetails, setUserDetails] = useState(null);
-  const [showLocationHistory, setShowLocationHistory] = useState(false);
   const [startLocation, setStartLocation] = useState(null);
-  const [stopLocation, setStopLocation] = useState(null);
-  const [journeyDuration, setJourneyDuration] = useState(null);
   const [journeyHistory, setJourneyHistory] = useState([]);
-  const [visibleJourneys, setVisibleJourneys] = useState(3);
   
   // Add ref to cache user details
   const userDetailsRef = useRef(null);
@@ -562,9 +554,9 @@ const MarkAttendanceScreen = () => {
           formData.append('Latitude', endLat.toString());
           formData.append('Longitude', endLng.toString());
           formData.append('KM', distanceKm.toFixed(2));
-          formData.append('ConcernedParty', categoryValue || '');
-          formData.append('Location', dropdownValue || '');
-          formData.append('Address', address || '');
+          formData.append('ConcernedParty', categories.find(c => c.id === categoryValue)?.name || '');
+          formData.append('Location', schools.find(s => s.SCODE === dropdownValue)?.SNAME || '');
+          formData.append('Address', displayAddress);
 
           console.log('Form Data:', formData);
 
@@ -889,7 +881,7 @@ const MarkAttendanceScreen = () => {
         { id: 'CAT007', name: 'Electrical contractor' },
         {id:'CAT008',name:'OEM'},
         {id:'CAT009',name:'Panel builders'},
-        {id:'CAT010',name:'End Client'}
+        {id:'CAT010',name:'End Client'},
       ];
 
       const formattedLocations = mockLocations.map(location => ({
@@ -1031,6 +1023,8 @@ const MarkAttendanceScreen = () => {
     uploadedImage,
   ]);
 
+  const [isOthersSelected, setIsOthersSelected] = useState(false);
+
   const renderDropdownOptions = (options, onSelect) => {
     return (
       <View style={styles.inlineDropdownList}>
@@ -1044,10 +1038,21 @@ const MarkAttendanceScreen = () => {
           />
         </View>
         <ScrollView style={styles.dropdownScrollView} nestedScrollEnabled={true}>
-          {/* Others Option */}
-          <View style={styles.inlineDropdownOption}>
-            <Text style={styles.disabledOptionText}>Others</Text>
-          </View>
+          {/* Others Option - Now clickable */}
+          <TouchableOpacity 
+            style={styles.inlineDropdownOption}
+            onPress={() => {
+              setDropdownValue('others');
+              setIsOthersSelected(true);
+              setOpenDropdown(null);
+              setSearchText('');
+              // Set focus on address input by making it editable
+              setTempAddress(address || '');
+              setIsEditingAddress(true);
+            }}
+          >
+            <Text style={styles.inlineDropdownOptionText}>Others</Text>
+          </TouchableOpacity>
           {/* Divider */}
           <View style={styles.optionDivider} />
           {/* Options */}
@@ -1071,10 +1076,12 @@ const MarkAttendanceScreen = () => {
                   onPress={() => {
                     if (onSelect) {
                       onSelect(option.SCODE || option.id);
+                      setIsOthersSelected(false); // Reset Others flag when a regular option is selected
                     } else {
                       // Fallback for backward compatibility
                       setDropdownValue(option.SCODE);
                       setAddress(option.ADDRESS);
+                      setIsOthersSelected(false); // Reset Others flag
                       setOpenDropdown(null);
                       setSearchText('');
                     }
@@ -1167,20 +1174,20 @@ const MarkAttendanceScreen = () => {
                 title={'Start Journey'}
                 onPress={startJourneyHandler}
                 isImage={true}
-                tintColor={(!categoryValue || !dropdownValue || journeyStartTime !== null) ? 'grey' : 'green'}
-                disabled={journeyStartTime !== null || !categoryValue || !dropdownValue}
+                tintColor={(!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 'grey' : 'green'}
+                disabled={journeyStartTime !== null || !categoryValue || !dropdownValue || (isOthersSelected && !address)}
                 isPressed={journeyStartTime !== null}
                 style={{
-                  opacity: (!categoryValue || !dropdownValue || journeyStartTime !== null) ? 0.15 : 1,
-                  backgroundColor: (!categoryValue || !dropdownValue || journeyStartTime !== null) ? 'rgba(0, 0, 0, 0.1)' : 'transparent',
+                  opacity: (!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 0.15 : 1,
+                  backgroundColor: (!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 'rgba(0, 0, 0, 0.1)' : 'transparent',
                   borderWidth: 1,
-                  borderColor: (!categoryValue || !dropdownValue || journeyStartTime !== null) ? 'rgba(0, 0, 0, 0.2)' : 'transparent',
+                  borderColor: (!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 'rgba(0, 0, 0, 0.2)' : 'transparent',
                 }}
                 textStyle={{
-                  color: (!categoryValue || !dropdownValue || journeyStartTime !== null) ? 'grey' : '#014B6E',
+                  color: (!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 'grey' : '#014B6E',
                 }}
                 imageStyle={{
-                  opacity: (!categoryValue || !dropdownValue || journeyStartTime !== null) ? 0.15 : 1,
+                  opacity: (!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 0.15 : 1,
                 }}
               />
             </View>
@@ -1285,7 +1292,7 @@ const MarkAttendanceScreen = () => {
             >
               <Text style={[styles.inputText, dropdownValue ? styles.inputFilled : {}]}>
                 {dropdownValue 
-                  ? schools.find(s => s.SCODE === dropdownValue)?.SNAME 
+                  ? (dropdownValue === 'others' ? 'Others' : schools.find(s => s.SCODE === dropdownValue)?.SNAME)
                   : "Select Location"}
               </Text>
               <Image 
