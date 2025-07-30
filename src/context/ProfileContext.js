@@ -18,14 +18,21 @@ export const ProfileProvider = ({ children }) => {
   const updateProfileImage = async (newImage) => {
     setProfileImage(newImage);
     try {
-      // Store the profile image URI in AsyncStorage
       await AsyncStorage.setItem('@profile_image', JSON.stringify(newImage));
     } catch (error) {
       console.error('Error saving profile image:', error);
     }
   };
 
-  // Load saved profile image on mount
+  const resetProfileImage = async () => {
+    setProfileImage(images.ProfileImage);
+    try {
+      await AsyncStorage.removeItem('@profile_image');
+    } catch (error) {
+      console.error('Error clearing profile image:', error);
+    }
+  };
+
   React.useEffect(() => {
     const loadProfileImage = async () => {
       try {
@@ -41,8 +48,8 @@ export const ProfileProvider = ({ children }) => {
   }, []);
 
   return (
-    <ProfileContext.Provider value={{ profileImage, updateProfileImage }}>
+    <ProfileContext.Provider value={{ profileImage, updateProfileImage, resetProfileImage }}>
       {children}
     </ProfileContext.Provider>
   );
-}; 
+};

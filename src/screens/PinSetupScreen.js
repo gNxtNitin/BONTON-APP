@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { images } from '../constants/images';
+import { useProfile } from '../context/ProfileContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -26,6 +27,7 @@ const PinSetupScreen = ({ navigation, route }) => {
   const [stage, setStage] = useState('setup');
   const [error, setError] = useState('');
   const [userPinKey, setUserPinKey] = useState(PIN_STORAGE_KEY);
+  const { resetProfileImage } = useProfile();
 
   useEffect(() => {
     const initializeUserPinKey = async () => {
@@ -120,6 +122,7 @@ const PinSetupScreen = ({ navigation, route }) => {
   };
 
   const handleReset = async () => {
+
     try {
       await AsyncStorage.removeItem(userPinKey);
       setStage('setup');
@@ -211,6 +214,7 @@ const PinSetupScreen = ({ navigation, route }) => {
 
   const handleSwitchUser = async () => {
     try {
+      resetProfileImage();
       // Clear all stored data
       await AsyncStorage.multiRemove([PIN_STORAGE_KEY, LOGIN_STATUS_KEY, AUTH_TOKEN_KEY]);
       navigation.reset({
