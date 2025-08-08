@@ -216,6 +216,13 @@ const MarkAttendanceScreen = () => {
   const [endCoords, setEndCoords] = useState({ latitude: null, longitude: null });
   const [routeDistance, setRouteDistance] = useState(null);
   const [isDropdownActive, setIsDropdownActive] = useState(false);
+  
+  // Validation states
+  const [showValidation, setShowValidation] = useState(false);
+  const [categoryError, setCategoryError] = useState('');
+  const [locationError, setLocationError] = useState('');
+  const [addressError, setAddressError] = useState('');
+  const [imageError, setImageError] = useState('');
 
 
   useEffect(() => {
@@ -380,7 +387,7 @@ const checkInternetConnection = async () => {
 
   // Start journey handler
   const startJourneyHandler = async () => {
-      setIsDropdownActive(true);
+      // Fields remain editable during journey
 
     if (journeyStartTime !== null) {
       Alert.alert('Journey Active', 'Please stop the current journey before starting a new one.');
@@ -446,18 +453,51 @@ const checkInternetConnection = async () => {
       return;
     }
 
-     // Check internet connection first
-  const isConnected = await checkInternetConnection();
-  if (!isConnected) {
-    Alert.alert(
-      'No Internet Connection',
-      'Please check your internet connection before stopping the journey to ensure data is saved properly.',
-      [
-        { text: 'OK', onPress: () => console.log('OK Pressed') }
-      ]
-    );
-    return;
-  }
+    // Validate required fields before stopping journey
+    setShowValidation(true);
+    setCategoryError('');
+    setLocationError('');
+    setAddressError('');
+    setImageError('');
+    
+    let hasErrors = false;
+    
+    if (!categoryValue) {
+      setCategoryError('Please select a category before stopping the journey.');
+      hasErrors = true;
+    }
+
+    if (!dropdownValue) {
+      setLocationError('Please select a location before stopping the journey.');
+      hasErrors = true;
+    }
+
+    if (dropdownValue === 'others' && !address.trim()) {
+      setAddressError('Please enter an address when selecting "Others" as location.');
+      hasErrors = true;
+    }
+
+    if (!uploadedImage) {
+      setImageError('Please upload an image before stopping the journey.');
+      hasErrors = true;
+    }
+    
+    if (hasErrors) {
+      return;
+    }
+
+    // Check internet connection first
+    const isConnected = await checkInternetConnection();
+    if (!isConnected) {
+      Alert.alert(
+        'No Internet Connection',
+        'Please check your internet connection before stopping the journey to ensure data is saved properly.',
+        [
+          { text: 'OK', onPress: () => console.log('OK Pressed') }
+        ]
+      );
+      return;
+    }
 
     Alert.alert(
       'Stop Journey',
@@ -518,7 +558,6 @@ const checkInternetConnection = async () => {
             console.log('Route distance from ORS:', distanceKm, 'km');
             setRouteDistance(distanceKm);
             setIsLoading(false);
-            setIsDropdownActive(false);
           } catch (apiErr) {
             // Set as zero on error, or keep as previous
             setRouteDistance(0);
@@ -711,6 +750,7 @@ const checkInternetConnection = async () => {
           Alert.alert('Error', response.errorMessage);
         } else if (response.assets && response.assets[0]) {
           setUploadedImage(response.assets[0].uri);
+          setImageError(''); // Clear error when image is uploaded
         }
       }
     );
@@ -730,6 +770,7 @@ const checkInternetConnection = async () => {
           Alert.alert('Error', response.errorMessage);
         } else if (response.assets && response.assets[0]) {
           setUploadedImage(response.assets[0].uri);
+          setImageError(''); // Clear error when image is uploaded
         }
       }
     );
@@ -1178,20 +1219,20 @@ const checkInternetConnection = async () => {
                 title={'Start Journey'}
                 onPress={startJourneyHandler}
                 isImage={true}
-                tintColor={(!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 'grey' : 'green'}
-                disabled={journeyStartTime !== null || !categoryValue || !dropdownValue || (isOthersSelected && !address)}
+                tintColor={journeyStartTime !== null ? 'grey' : 'green'}
+                disabled={journeyStartTime !== null}
                 isPressed={journeyStartTime !== null}
                 style={{
-                  opacity: (!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 0.15 : 1,
-                  backgroundColor: (!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 'rgba(0, 0, 0, 0.1)' : 'transparent',
+                  opacity: journeyStartTime !== null ? 0.15 : 1,
+                  backgroundColor: journeyStartTime !== null ? 'rgba(0, 0, 0, 0.1)' : 'transparent',
                   borderWidth: 1,
-                  borderColor: (!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 'rgba(0, 0, 0, 0.2)' : 'transparent',
+                  borderColor: journeyStartTime !== null ? 'rgba(0, 0, 0, 0.2)' : 'transparent',
                 }}
                 textStyle={{
-                  color: (!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 'grey' : '#014B6E',
+                  color: journeyStartTime !== null ? 'grey' : '#014B6E',
                 }}
                 imageStyle={{
-                  opacity: (!categoryValue || !dropdownValue || journeyStartTime !== null || (isOthersSelected && !address)) ? 0.15 : 1,
+                  opacity: journeyStartTime !== null ? 0.15 : 1,
                 }}
               />
             </View>
@@ -1237,8 +1278,7 @@ const checkInternetConnection = async () => {
             <TouchableOpacity
               style={styles.dropdown}
               activeOpacity={0.7}
-              onPress={() =>!isDropdownActive && setOpenDropdown(openDropdown === 'category' ? null : 'category')}
-              disabled={isDropdownActive}
+              onPress={() => setOpenDropdown(openDropdown === 'category' ? null : 'category')}
             >
               <Text style={[styles.inputText, categoryValue ? styles.inputFilled : {}]}>
                 {categoryValue 
@@ -1259,6 +1299,11 @@ const checkInternetConnection = async () => {
                 {categories.length} category{categories.length !== 1 ? 'ies' : 'y'} available
               </Text>
             )}
+            {showValidation && categoryError ? (
+              <Text style={styles.errorText}>
+                {categoryError}
+              </Text>
+            ) : null}
             {openDropdown === 'category' && (
               <View style={styles.inlineDropdownList}>
                 <ScrollView style={styles.dropdownScrollView} nestedScrollEnabled={true}>
@@ -1271,6 +1316,7 @@ const checkInternetConnection = async () => {
                         onPress={() => {
                           setCategoryValue(option.id);
                           setOpenDropdown(null);
+                          setCategoryError(''); // Clear error when category is selected
                         }}
                       >
                         <Text style={styles.inlineDropdownOptionText}>
@@ -1293,20 +1339,17 @@ const checkInternetConnection = async () => {
             <TouchableOpacity
               style={styles.dropdown}
               activeOpacity={0.7}
-              onPress={() =>!isDropdownActive && setOpenDropdown(openDropdown === 'school' ? null : 'school')}
-                disabled={isDropdownActive}
+              onPress={() => setOpenDropdown(openDropdown === 'school' ? null : 'school')}
             >
               <Text style={[styles.inputText, dropdownValue ? styles.inputFilled : {}]}>
                 {dropdownValue 
                   ? (dropdownValue === 'others' ? 'Others' : schools.find(s => s.SCODE === dropdownValue)?.SNAME)
                   : "Select Location"}
               </Text>
-              {!isDropdownActive && (
-    <Image 
-      source={DROPDOWN_ICON} 
-      style={[styles.dropdownIcon, openDropdown === 'school' && { transform: [{ rotate: '180deg' }] }]} 
-    />
-  )}
+              <Image 
+                source={DROPDOWN_ICON} 
+                style={[styles.dropdownIcon, openDropdown === 'school' && { transform: [{ rotate: '180deg' }] }]} 
+              />
             </TouchableOpacity>
             {isLoading ? (
               <Text style={styles.dropdownHelperText}>
@@ -1317,10 +1360,16 @@ const checkInternetConnection = async () => {
                 {schools.length} location{schools.length !== 1 ? 's' : ''} available
               </Text>
             )}
+            {showValidation && locationError ? (
+              <Text style={styles.errorText}>
+                {locationError}
+              </Text>
+            ) : null}
             {openDropdown === 'school' && renderDropdownOptions(schools, (locationId) => {
               setDropdownValue(locationId);
               setOpenDropdown(null);
               setSearchText('');
+              setLocationError(''); // Clear error when location is selected
             })}
           </View>
           <View style={{ marginBottom: 12 }}>
@@ -1357,6 +1406,7 @@ const checkInternetConnection = async () => {
                     onPress={() => {
                       if (tempAddress.trim()) {
                         setAddress(tempAddress.trim());
+                        setAddressError(''); // Clear error when address is saved
                       }
                       setIsEditingAddress(false);
                     }}
@@ -1412,7 +1462,7 @@ const checkInternetConnection = async () => {
                   }}>
                     {displayAddress}
                   </Text>
-                  {dropdownValue && !isDropdownActive &&  (
+                  {dropdownValue && (
                     <TouchableOpacity
                       onPress={() => {
                         setTempAddress(address || '');
@@ -1439,6 +1489,11 @@ const checkInternetConnection = async () => {
                 </>
               )}
             </View>
+            {showValidation && addressError ? (
+              <Text style={styles.errorText}>
+                {addressError}
+              </Text>
+            ) : null}
           </View>
 
           {/* Upload Box */}
@@ -1481,7 +1536,10 @@ const checkInternetConnection = async () => {
                         {
                           text: 'Remove',
                           style: 'destructive',
-                          onPress: () => setUploadedImage(null)
+                          onPress: () => {
+                          setUploadedImage(null);
+                          setImageError(''); // Clear error when image is removed
+                        }
                         }
                       ],
                       { cancelable: true }
@@ -1518,6 +1576,11 @@ const checkInternetConnection = async () => {
               Upload your image
             </Text>
           </TouchableOpacity>
+          {showValidation && imageError ? (
+            <Text style={styles.errorText}>
+              {imageError}
+            </Text>
+          ) : null}
 
           {/* Journey Info Card */}
           <View style={{
@@ -2230,6 +2293,13 @@ const styles = StyleSheet.create({
     marginLeft: 'auto',
     tintColor: '#3A7C7C',
     opacity: 0.7,
+  },
+  errorText: {
+    color: '#F44336',
+    fontSize: 12,
+    marginTop: 4,
+    fontFamily: 'Montserrat-Regular',
+    marginBottom: 8,
   },
 });
 
