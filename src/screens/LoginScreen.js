@@ -66,7 +66,7 @@ const LoginScreen = ({ navigation }) => {
       });
       const data = await response.json();
       console.log("datalogin",data)
-      if (response.ok && data && data.code === 200 && data.data && data.data.token) {
+      if (response.ok && data && (data.code === 200 || data.code === 201) && data.data && data.data.token) {
         // Store user details and token from API response
         const userDetails = {
           empId: data.data.empId,
@@ -87,18 +87,18 @@ const LoginScreen = ({ navigation }) => {
         navigation.replace('PinSetup');
       } else {
         Alert.alert(
-  'Login Failed',
-  data?.msg || 'Invalid credentials or server error.',
-  [
-    {
-      text: 'OK',
-      onPress: () => {
-        setPassword('');
-      },
-    },
-  ],
-  { cancelable: false }
-);
+          'Login Failed',
+          data?.msg || 'Invalid credentials or server error.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                setPassword('');
+              },
+            },
+          ],
+          { cancelable: false }
+        );
       }
     } catch (error) {
       console.error('Login error:', error);

@@ -598,7 +598,7 @@ const checkInternetConnection = async () => {
           formData.append('Longitude', endLng.toString());
           formData.append('KM', distanceKm.toFixed(2));
           formData.append('ConcernedParty', categories.find(c => c.id === categoryValue)?.name || '');
-          formData.append('Location', schools.find(s => s.SCODE === dropdownValue)?.SNAME || '');
+          formData.append('Location', dropdownValue === 'others' ? 'Others' : (schools.find(s => s.SCODE === dropdownValue)?.SNAME || ''));
           formData.append('Address', displayAddress);
 
           console.log('Form Data:', formData);
@@ -1150,7 +1150,7 @@ const checkInternetConnection = async () => {
   // Add memoized address calculation
   const displayAddress = useMemo(() => {
     if (!dropdownValue) {
-      return 'Select a school to view address';
+      return 'Select a location to view address';
     }
     
     const selectedSchool = schools.find(s => s.SCODE === dropdownValue);
@@ -1274,7 +1274,7 @@ const checkInternetConnection = async () => {
 
 
           <View style={{width: '100%', paddingVertical:2, zIndex: 9999}}>
-            <CustomLabel>Concerned party categories</CustomLabel>
+            <CustomLabel>Concerned party categories<Text style={styles.requiredAsterisk}> *</Text></CustomLabel>
             <TouchableOpacity
               style={styles.dropdown}
               activeOpacity={0.7}
@@ -1335,7 +1335,7 @@ const checkInternetConnection = async () => {
           </View>
 
           <View style={{width: '100%', paddingVertical:2, zIndex: 9998}}>
-            <CustomLabel>Location</CustomLabel>
+            <CustomLabel>Location<Text style={styles.requiredAsterisk}> *</Text></CustomLabel>
             <TouchableOpacity
               style={styles.dropdown}
               activeOpacity={0.7}
@@ -1373,7 +1373,7 @@ const checkInternetConnection = async () => {
             })}
           </View>
           <View style={{ marginBottom: 12 }}>
-            <CustomLabel>Address</CustomLabel>
+            <CustomLabel>Address<Text style={styles.requiredAsterisk}> *</Text></CustomLabel>
             <View style={{
               borderColor: '#fff',
               borderWidth: 1,
@@ -1465,7 +1465,9 @@ const checkInternetConnection = async () => {
                   {dropdownValue && (
                     <TouchableOpacity
                       onPress={() => {
-                        setTempAddress(address || '');
+                        // If there's an existing address, use it; otherwise use the selected location's address
+                        const existingAddress = address || (dropdownValue !== 'others' ? schools.find(s => s.SCODE === dropdownValue)?.ADDRESS : '');
+                        setTempAddress(existingAddress || '');
                         setIsEditingAddress(true);
                       }}
                       style={{
@@ -2300,6 +2302,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontFamily: 'Montserrat-Regular',
     marginBottom: 8,
+  },
+  requiredAsterisk: {
+    color: '#F44336',
+    fontSize: 14,
+    fontFamily: 'Montserrat-Bold',
   },
 });
 

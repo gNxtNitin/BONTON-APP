@@ -40,8 +40,8 @@ export default function AllowanceScreen() {
   const [descriptions, setDescriptions] = useState([]);
   const [isLoadingKM, setIsLoadingKM] = useState(false);
 
-  const [fromDate, setFromDate] = useState(null);
-  const [toDate, setToDate] = useState(null);
+  const [fromDate, setFromDate] = useState(new Date());
+  const [toDate, setToDate] = useState(new Date());
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
   const [userDetails, setUserDetails] = useState(null);
@@ -68,6 +68,22 @@ const validateForm = () => {
   setErrors(newErrors);
   
   return !Object.values(newErrors).some(error => error);
+};
+
+// Function to get error message for each field
+const getErrorMessage = (fieldName) => {
+  switch (fieldName) {
+    case 'fromDate':
+      return 'Please select from date';
+    case 'toDate':
+      return 'Please select to date';
+    case 'kilometers':
+      return 'Please enter valid kilometers';
+    case 'daAmount':
+      return 'Please enter DA amount';
+    default:
+      return '';
+  }
 };
 
   const getKMValueByDateRange = async (from, to) => {
@@ -109,6 +125,8 @@ const validateForm = () => {
     setShowFromPicker(false);
     if (selectedDate) {
       setFromDate(selectedDate);
+      // Clear error when date is selected
+      setErrors(prev => ({ ...prev, fromDate: false }));
       if (toDate) {
         getKMValueByDateRange(selectedDate, toDate);
       }
@@ -119,6 +137,8 @@ const validateForm = () => {
     setShowToPicker(false);
     if (selectedDate) {
       setToDate(selectedDate);
+      // Clear error when date is selected
+      setErrors(prev => ({ ...prev, toDate: false }));
       if (fromDate) {
         getKMValueByDateRange(fromDate, selectedDate);
       }
@@ -170,45 +190,53 @@ const validateForm = () => {
   };
 
   // Create a utility function to validate the amount input
+  // Maximum value allowed: 999999.99 (6 digits before decimal, 2 after)
 const validateAmountInput = (text, setValue) => {
-  // Remove any non-digit or non-decimal characters
-  let numericValue = text.replace(/[^0-9.]/g, '');
+  console.log('Input text:', text); // Debug log
   
-  // Split into parts before and after decimal
-  const parts = numericValue.split('.');
+  // Remove any non-numeric characters except decimal point
+  const cleanedText = text.replace(/[^0-9.]/g, '');
   
-  // If there's more than one decimal point, ignore the input
-  if (parts.length > 2) {
+  // Handle decimal point logic
+  if (cleanedText.includes('.')) {
+    const parts = cleanedText.split('.');
+    const beforeDecimal = parts[0];
+    const afterDecimal = parts[1];
+    
+    // Limit to 6 digits before decimal
+    if (beforeDecimal.length > 6) {
+      return;
+    }
+    
+    // Limit to 2 digits after decimal
+    if (afterDecimal && afterDecimal.length > 2) {
+      return;
+    }
+    
+    // Only allow one decimal point
+    if (parts.length > 2) {
+      return;
+    }
+  } else {
+    // No decimal point, limit to 6 digits
+    if (cleanedText.length > 6) {
+      return;
+    }
+  }
+  
+  // Prevent multiple decimal points
+  const decimalCount = (cleanedText.match(/\./g) || []).length;
+  if (decimalCount > 1) {
     return;
   }
   
-  // Check part before decimal (integer part)
-  if (parts[0] && parts[0].length > 6) {
-    // Limit to 6 digits
-    parts[0] = parts[0].substring(0, 6);
-  }
-  
-  // Check part after decimal (fractional part)
-  if (parts[1] && parts[1].length > 2) {
-    // Limit to 2 digits
-    parts[1] = parts[1].substring(0, 2);
-  }
-  
-  // Reconstruct the value
-  numericValue = parts[0];
-  if (parts[1]) {
-    numericValue += '.' + parts[1];
-  }
-  
-  setValue(numericValue);
+  setValue(cleanedText);
 };
 
   const handleSubmit = async () => {
-
-      if (!validateForm()) {
-    Alert.alert(' Error', 'Please Enter all mandatory fields before submitting');
-    return;
-  }
+    if (!validateForm()) {
+      return; // Just return, validation errors will be shown as labels
+    }
     try {
       setIsLoading(true);
 
@@ -270,8 +298,8 @@ const validateAmountInput = (text, setValue) => {
                 setOthers('');
                 setBills([]);
                 setDescriptions([]);
-                setFromDate(null);
-                setToDate(null);
+                setFromDate(new Date());
+                setToDate(new Date());
                 navigation.goBack();
               }
             }
@@ -390,6 +418,11 @@ const validateAmountInput = (text, setValue) => {
               <Text style={styles.dateText}>{formatDate(fromDate)}</Text>
               <Image source={CALENDAR_ICON} style={styles.calendarIcon} />
             </TouchableOpacity>
+            {errors.fromDate && (
+              <Text style={styles.errorText}>
+                {getErrorMessage('fromDate')}
+              </Text>
+            )}
           </View>
 
           <View style={styles.dateField}>
@@ -404,6 +437,11 @@ const validateAmountInput = (text, setValue) => {
               <Text style={styles.dateText}>{formatDate(toDate)}</Text>
               <Image source={CALENDAR_ICON} style={styles.calendarIcon} />
             </TouchableOpacity>
+            {errors.toDate && (
+              <Text style={styles.errorText}>
+                {getErrorMessage('toDate')}
+              </Text>
+            )}
           </View>
         </View>
 
@@ -432,28 +470,43 @@ const validateAmountInput = (text, setValue) => {
           label="Total Kilometer"
           value={kilometers}
           onChangeText={text => {
-            // Only allow numbers and decimal point
-            const numericValue = text.replace(/[^0-9.]/g, '');
-            // Ensure only one decimal point
-            const parts = numericValue.split('.');
-            if (parts.length > 2) {
-              return;
+            validateAmountInput(text, setKilometers);
+            // Clear error when user starts typing
+            if (text && parseFloat(text) > 0) {
+              setErrors(prev => ({ ...prev, kilometers: false }));
             }
-            setKilometers(numericValue);
           }}
           editable={true}
           placeholder="0"
           keyboardType="decimal-pad"
+          maxLength={9}
         />
+        {errors.kilometers && (
+          <Text style={styles.errorText}>
+            {getErrorMessage('kilometers')}
+          </Text>
+        )}
 
         <CustomInput
           label="DA Amount"
           value={daAmount}
-      onChangeText={(text) => validateAmountInput(text, setDaAmount)}
+      onChangeText={(text) => {
+        validateAmountInput(text, setDaAmount);
+        // Clear error when user starts typing
+        if (text && parseFloat(text) > 0) {
+          setErrors(prev => ({ ...prev, daAmount: false }));
+        }
+      }}
           placeholder="Enter DA amount"
           keyboardType="decimal-pad"
           required={true}
+          maxLength={9}
         />
+        {errors.daAmount && (
+          <Text style={styles.errorText}>
+            {getErrorMessage('daAmount')}
+          </Text>
+        )}
 
         <CustomInput
           label="Hotel"
@@ -461,6 +514,7 @@ const validateAmountInput = (text, setValue) => {
       onChangeText={(text) => validateAmountInput(text, setHotel)}
           placeholder="Enter hotel amount"
           keyboardType="decimal-pad"
+          maxLength={9}
         />
 
         <CustomInput
@@ -469,6 +523,7 @@ const validateAmountInput = (text, setValue) => {
        onChangeText={(text) => validateAmountInput(text, setOthers)}
           placeholder="Enter other amount"
           keyboardType="decimal-pad"
+          maxLength={9}
         />
 
         <View style={styles.billsContainer}>
@@ -854,5 +909,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'Montserrat-Regular',
     textAlign: 'center',
+  },
+  errorText: {
+    color: '#F44336',
+    fontSize: 12,
+    marginTop: 4,
+    fontFamily: 'Montserrat-Regular',
+    marginBottom: 8,
   },
 });
