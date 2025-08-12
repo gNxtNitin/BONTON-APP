@@ -177,18 +177,16 @@ const MarkAttendanceScreen = () => {
     navigation.goBack();
   };
 
-  const [dropdownValue, setDropdownValue] = useState(null);
   const [categoryValue, setCategoryValue] = useState(null);
   const [journeys, setJourneys] = useState([]);
 
   const [journeyStartTime, setJourneyStartTime] = useState(null); 
   const [currentPath, setCurrentPath] = useState([]);
-  const [schools, setSchools] = useState([]);
   const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [address, setAddress] = useState('');
   const [userDetails, setUserDetails] = useState(null);
-  const [startLocation, setStartLocation] = useState(null);
+
   const [journeyHistory, setJourneyHistory] = useState([]);
 
   
@@ -204,8 +202,6 @@ const MarkAttendanceScreen = () => {
   const [tempAddress, setTempAddress] = useState('');
 
   const [openDropdown, setOpenDropdown] = useState(null);
-  const [searchText, setSearchText] = useState('');
-
   const [showImageOptions, setShowImageOptions] = useState(false);
 
   const [currentTime, setCurrentTime] = useState('00-00-00');
@@ -220,7 +216,6 @@ const MarkAttendanceScreen = () => {
   // Validation states
   const [showValidation, setShowValidation] = useState(false);
   const [categoryError, setCategoryError] = useState('');
-  const [locationError, setLocationError] = useState('');
   const [addressError, setAddressError] = useState('');
   const [imageError, setImageError] = useState('');
 
@@ -456,7 +451,6 @@ const checkInternetConnection = async () => {
     // Validate required fields before stopping journey
     setShowValidation(true);
     setCategoryError('');
-    setLocationError('');
     setAddressError('');
     setImageError('');
     
@@ -467,13 +461,8 @@ const checkInternetConnection = async () => {
       hasErrors = true;
     }
 
-    if (!dropdownValue) {
-      setLocationError('Please select a location before stopping the journey.');
-      hasErrors = true;
-    }
-
-    if (dropdownValue === 'others' && !address.trim()) {
-      setAddressError('Please enter an address when selecting "Others" as location.');
+    if (!address.trim()) {
+      setAddressError('Please enter an address before stopping the journey.');
       hasErrors = true;
     }
 
@@ -586,7 +575,6 @@ const checkInternetConnection = async () => {
 
           // Log the current state for debugging
           console.log('Current Location:', position.coords);
-          console.log('School ID:', dropdownValue);
           console.log('Distance:', distanceKm);
           console.log('Image:', uploadedImage);
           console.log('Address:', address);
@@ -598,8 +586,8 @@ const checkInternetConnection = async () => {
           formData.append('Longitude', endLng.toString());
           formData.append('KM', distanceKm.toFixed(2));
           formData.append('ConcernedParty', categories.find(c => c.id === categoryValue)?.name || '');
-          formData.append('Location', dropdownValue === 'others' ? 'Others' : (schools.find(s => s.SCODE === dropdownValue)?.SNAME || ''));
-          formData.append('Address', displayAddress);
+
+          formData.append('Address', address);
 
           console.log('Form Data:', formData);
 
@@ -613,11 +601,6 @@ const checkInternetConnection = async () => {
 
           // Save journey data to history
           const journeyData = {
-            startLocation: {
-              longitude: startLat,
-              latitude: startLng,
-              time: journeyStartTime.toISOString()
-            },
             stopLocation: {
               longitude: endLat,
               latitude: endLng,
@@ -659,7 +642,6 @@ const checkInternetConnection = async () => {
                     setRouteDistance(null);
                     setUploadedImage(null);
                     setAddress('');
-                    setDropdownValue(null);
                     setCategoryValue(null);
                     setStartCoords({ latitude: null, longitude: null });
                     setEndCoords({ latitude: null, longitude: null });
@@ -877,43 +859,14 @@ const checkInternetConnection = async () => {
     }
   };
 
-  // Function to fetch schools from API
-  const fetchSchools = async () => {
+  // Function to fetch categories from API
+  const fetchCategories = async () => {
     try {
       setIsLoading(true);
-      console.log('Loading mock locations data...');
+      console.log('Loading categories data...');
 
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Mock locations data
-      const mockLocations = [
-        {
-          SCODE: 'LOC001',
-          SNAME: 'Location 1',
-          ADDRESS: '123 Main Street, City Center'
-        },
-        {
-          SCODE: 'LOC002',
-          SNAME: 'Location 2',
-          ADDRESS: '456 Oak Avenue, Downtown'
-        },
-        {
-          SCODE: 'LOC003',
-          SNAME: 'Location 3',
-          ADDRESS: '789 Pine Road, Suburb'
-        },
-        {
-          SCODE: 'LOC004',
-          SNAME: 'Location 4',
-          ADDRESS: '321 Elm Street, Westside'
-        },
-        {
-          SCODE: 'LOC005',
-          SNAME: 'Location 5',
-          ADDRESS: '654 Maple Drive, Eastside'
-        }
-      ];
 
       // Mock categories data
       const mockCategories = [
@@ -927,16 +880,8 @@ const checkInternetConnection = async () => {
         {id:'CAT008',name:'OEM'},
         {id:'CAT009',name:'Panel builders'},
         {id:'CAT010',name:'End Client'},
+        {id:'CAT011',name:'Government Department'},
       ];
-
-      const formattedLocations = mockLocations.map(location => ({
-        SCODE: location.SCODE,
-        SNAME: location.SNAME,
-        label: location.SNAME,
-        value: location.SCODE,
-        key: location.SCODE,
-        ADDRESS: location.ADDRESS
-      }));
 
       const formattedCategories = mockCategories.map(category => ({
         id: category.id,
@@ -946,10 +891,9 @@ const checkInternetConnection = async () => {
         key: category.id
       }));
 
-      setSchools(formattedLocations);
       setCategories(formattedCategories);
     } catch (error) {
-      console.error('Error loading locations:', error);
+      console.error('Error loading categories:', error);
     } finally {
       setIsLoading(false);
     }
@@ -969,8 +913,8 @@ const checkInternetConnection = async () => {
           return;
         }
         setUserDetails(details);
-        // Fetch locations after setting user details
-        await fetchSchools();
+        // Fetch categories after setting user details
+        await fetchCategories();
       } catch (error) {
         console.error('Error in initializeUserDetails:', error);
         navigation.reset({
@@ -985,10 +929,10 @@ const checkInternetConnection = async () => {
 
   // Fetch locations when component mounts
   useEffect(() => {
-    // Add focus listener to refresh locations when screen comes into focus
+    // Add focus listener to refresh categories when screen comes into focus
     const unsubscribe = navigation.addListener('focus', () => {
-      console.log('Screen focused, refreshing locations...');
-      fetchSchools();
+      console.log('Screen focused, refreshing categories...');
+      fetchCategories();
     });
 
     // Cleanup subscription on unmount
@@ -1029,11 +973,10 @@ const checkInternetConnection = async () => {
       const data = await loadActiveJourney();
       if (data) {
         setJourneyStartTime(data.journeyStartTime ? new Date(data.journeyStartTime) : null);
-        setStartLocation(data.startLocation);
+
         setCurrentPath(data.currentPath || []);
 
         setCategoryValue(data.categoryValue || null);
-        setDropdownValue(data.dropdownValue || null);
         setAddress(data.address || '');
         setUploadedImage(data.uploadedImage || null);
         // restore any other state if needed
@@ -1047,11 +990,10 @@ const checkInternetConnection = async () => {
     if (journeyStartTime) {
       saveActiveJourney({
         journeyStartTime,
-        startLocation,
+
         currentPath,
 
         categoryValue,
-        dropdownValue,
         address,
         uploadedImage,
         // add any other relevant state
@@ -1059,109 +1001,18 @@ const checkInternetConnection = async () => {
     }
   }, [
     journeyStartTime,
-    startLocation,
     currentPath,
 
     categoryValue,
-    dropdownValue,
     address,
     uploadedImage,
   ]);
 
-  const [isOthersSelected, setIsOthersSelected] = useState(false);
 
-  const renderDropdownOptions = (options, onSelect) => {
-    return (
-      <View style={styles.inlineDropdownList}>
-        <View style={styles.searchContainer}>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Search..."
-            value={searchText}
-            onChangeText={setSearchText}
-            placeholderTextColor="rgba(1, 75, 110, 0.5)"
-          />
-        </View>
-        <ScrollView style={styles.dropdownScrollView} nestedScrollEnabled={true}>
-          {/* Others Option - Now clickable */}
-          <TouchableOpacity 
-            style={styles.inlineDropdownOption}
-            onPress={() => {
-              setDropdownValue('others');
-              setIsOthersSelected(true);
-              setOpenDropdown(null);
-              setSearchText('');
-              // Set focus on address input by making it editable
-              setTempAddress(address || '');
-              setIsEditingAddress(true);
-            }}
-          >
-            <Text style={styles.inlineDropdownOptionText}>Others</Text>
-          </TouchableOpacity>
-          {/* Divider */}
-          <View style={styles.optionDivider} />
-          {/* Options */}
-          {options && options.length > 0 ? (
-            options
-              .filter(option => {
-                const searchTerm = searchText.toLowerCase();
-                if (option.SNAME) {
-                  // For locations
-                  return option.SNAME.toLowerCase().includes(searchTerm);
-                } else if (option.name) {
-                  // For categories
-                  return option.name.toLowerCase().includes(searchTerm);
-                }
-                return false;
-              })
-              .map((option) => (
-                <TouchableOpacity
-                  key={option.SCODE || option.id}
-                  style={styles.inlineDropdownOption}
-                  onPress={() => {
-                    if (onSelect) {
-                      onSelect(option.SCODE || option.id);
-                      setIsOthersSelected(false); // Reset Others flag when a regular option is selected
-                    } else {
-                      // Fallback for backward compatibility
-                      setDropdownValue(option.SCODE);
-                      setAddress(option.ADDRESS);
-                      setIsOthersSelected(false); // Reset Others flag
-                      setOpenDropdown(null);
-                      setSearchText('');
-                    }
-                  }}
-                >
-                  <Text style={styles.inlineDropdownOptionText}>
-                    {option.SNAME || option.name}
-                  </Text>
-                </TouchableOpacity>
-              ))
-          ) : (
-            <View style={styles.inlineDropdownOption}>
-              <Text style={styles.inlineDropdownOptionText}>No options available</Text>
-            </View>
-          )}
-        </ScrollView>
-      </View>
-    );
-  };
 
-  // Add memoized address calculation
-  const displayAddress = useMemo(() => {
-    if (!dropdownValue) {
-      return 'Select a location to view address';
-    }
-    
-    const selectedSchool = schools.find(s => s.SCODE === dropdownValue);
-    console.log('Calculating address for school:', {
-      code: dropdownValue,
-      school: selectedSchool,
-      address: selectedSchool?.ADDRESS
-    });
-    
-    return address || selectedSchool?.ADDRESS || 'No address available';
-  }, [dropdownValue, schools, address]);
+
+
+
 
   const formatTime = (timeString) => {
     if (!timeString || timeString === '0') return '00:00:00';
@@ -1334,44 +1185,7 @@ const checkInternetConnection = async () => {
             )}
           </View>
 
-          <View style={{width: '100%', paddingVertical:2, zIndex: 9998}}>
-            <CustomLabel>Location<Text style={styles.requiredAsterisk}> *</Text></CustomLabel>
-            <TouchableOpacity
-              style={styles.dropdown}
-              activeOpacity={0.7}
-              onPress={() => setOpenDropdown(openDropdown === 'school' ? null : 'school')}
-            >
-              <Text style={[styles.inputText, dropdownValue ? styles.inputFilled : {}]}>
-                {dropdownValue 
-                  ? (dropdownValue === 'others' ? 'Others' : schools.find(s => s.SCODE === dropdownValue)?.SNAME)
-                  : "Select Location"}
-              </Text>
-              <Image 
-                source={DROPDOWN_ICON} 
-                style={[styles.dropdownIcon, openDropdown === 'school' && { transform: [{ rotate: '180deg' }] }]} 
-              />
-            </TouchableOpacity>
-            {isLoading ? (
-              <Text style={styles.dropdownHelperText}>
-                Loading locations...
-              </Text>
-            ) : (
-              <Text style={styles.dropdownHelperText}>
-                {schools.length} location{schools.length !== 1 ? 's' : ''} available
-              </Text>
-            )}
-            {showValidation && locationError ? (
-              <Text style={styles.errorText}>
-                {locationError}
-              </Text>
-            ) : null}
-            {openDropdown === 'school' && renderDropdownOptions(schools, (locationId) => {
-              setDropdownValue(locationId);
-              setOpenDropdown(null);
-              setSearchText('');
-              setLocationError(''); // Clear error when location is selected
-            })}
-          </View>
+
           <View style={{ marginBottom: 12 }}>
             <CustomLabel>Address<Text style={styles.requiredAsterisk}> *</Text></CustomLabel>
             <View style={{
@@ -1460,34 +1274,30 @@ const checkInternetConnection = async () => {
                     flex: 1,
                     marginRight: 10
                   }}>
-                    {displayAddress}
+                    {address || 'Enter address'}
                   </Text>
-                  {dropdownValue && (
-                    <TouchableOpacity
-                      onPress={() => {
-                        // If there's an existing address, use it; otherwise use the selected location's address
-                        const existingAddress = address || (dropdownValue !== 'others' ? schools.find(s => s.SCODE === dropdownValue)?.ADDRESS : '');
-                        setTempAddress(existingAddress || '');
-                        setIsEditingAddress(true);
-                      }}
-                      style={{
-                        backgroundColor: 'rgba(1, 75, 110, 0.1)',
-                        paddingHorizontal: 12,
-                        paddingVertical: 6,
-                        borderRadius: 6,
-                        borderWidth: 1,
-                        borderColor: 'rgba(1, 75, 110, 0.3)',
-                      }}
-                    >
-                      <Text style={{
-                        color: '#014B6E',
-                        fontSize: 12,
-                        fontFamily: 'Montserrat-SemiBold',
-                      }}>
-                        Edit Address
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                  <TouchableOpacity
+                    onPress={() => {
+                      setTempAddress(address || '');
+                      setIsEditingAddress(true);
+                    }}
+                    style={{
+                      backgroundColor: 'rgba(1, 75, 110, 0.1)',
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 6,
+                      borderWidth: 1,
+                      borderColor: 'rgba(1, 75, 110, 0.3)',
+                    }}
+                  >
+                    <Text style={{
+                      color: '#014B6E',
+                      fontSize: 12,
+                      fontFamily: 'Montserrat-SemiBold',
+                    }}>
+                      Edit Address
+                    </Text>
+                  </TouchableOpacity>
                 </>
               )}
             </View>
@@ -1749,34 +1559,6 @@ const checkInternetConnection = async () => {
               {/* All Journeys in Single Table */}
               {journeyHistory.map((journey, journeyIndex) => (
                 <React.Fragment key={journeyIndex}>
-                  {/* Start Location Row */}
-                  {journey.startLocation && (
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        borderTopWidth: 0.5,
-                        borderColor: '#000',
-                      }}
-                    >
-                      <View style={{ flex: 1, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8, justifyContent: 'center', alignItems: 'center' }}>
-                        <Text style={{ textAlign: 'center', color: '#4CAF50', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>
-                          Start
-                        </Text>
-                      </View>
-                      <View style={{ flex: 2, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8 }}>
-                        <Text style={{ textAlign: 'center', color: '#4CAF50', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>{journey.startLocation.longitude}</Text>
-                      </View>
-                      <View style={{ flex: 2, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8 }}>
-                        <Text style={{ textAlign: 'center', color: '#4CAF50', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>{journey.startLocation.latitude}</Text>
-                      </View>
-                      <View style={{ flex: 2, paddingVertical: 8 }}>
-                        <Text style={{ textAlign: 'center', color: '#4CAF50', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>
-                          {formatTime(journey.startLocation.time)}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-
                   {/* Stop Location Row */}
                   {journey.stopLocation && (
                     <View
@@ -1807,38 +1589,6 @@ const checkInternetConnection = async () => {
                 </React.Fragment>
               ))}
 
-              {/* Current Journey (if active) */}
-              {journeyStartTime !== null && (
-                <React.Fragment>
-                  {/* Start Location Row */}
-                  {startLocation && (
-                    <View
-                      style={{
-                        flexDirection: 'row',
-                        borderTopWidth: 0.5,
-                        borderColor: '#000',
-                      }}
-                    >
-                      <View style={{ flex: 1, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8, justifyContent: 'center', alignItems: 'center' }}>
-                        <Text style={{ textAlign: 'center', color: '#4CAF50', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>
-                          Start
-                        </Text>
-                      </View>
-                      <View style={{ flex: 2, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8 }}>
-                        <Text style={{ textAlign: 'center', color: '#4CAF50', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>{startLocation.longitude}</Text>
-                      </View>
-                      <View style={{ flex: 2, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8 }}>
-                        <Text style={{ textAlign: 'center', color: '#4CAF50', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>{startLocation.latitude}</Text>
-                      </View>
-                      <View style={{ flex: 2, paddingVertical: 8 }}>
-                        <Text style={{ textAlign: 'center', color: '#4CAF50', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>
-                          {formatTime(startLocation.time)}
-                        </Text>
-                      </View>
-                    </View>
-                  )}
-                </React.Fragment>
-              )}
             </View>
           )}
         </View>
@@ -2304,9 +2054,10 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   requiredAsterisk: {
-    color: '#F44336',
-    fontSize: 14,
-    fontFamily: 'Montserrat-Bold',
+    color: 'red',
+    fontSize: 16,
+    marginLeft: 5,
+    marginTop: 12,
   },
 });
 

@@ -35,7 +35,7 @@ const ReportCard = ({ item, reportType }) => {
         // { label: 'School Name', value: item.LOCATION },
         { label: 'Address', value: item.ADDRESS || 'N/A' },
         {label :'Concerned Party',value:item.CONCERNED_PARTY},
-        {label:'Location',value:item.LOCATION},
+        // {label:'Location',value:item.LOCATION},
         { label: 'KM', value: item.KM ? item.KM.toFixed(2) : '0.00' },
       ];
     } else {
