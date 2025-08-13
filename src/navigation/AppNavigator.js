@@ -38,11 +38,11 @@ const DrawerNavigator = () => (
 
 const AppNavigator = () => (
   <SafeAreaView style={{ flex: 1 }} edges={['top', 'right', 'bottom', 'left']}>
-    <StatusBar
-      barStyle="dark-content"
-      backgroundColor="transparent"
-      translucent={true}
-    />
+  <StatusBar
+  barStyle="light-content"   
+  backgroundColor="##4cf4dc"  
+  translucent={false}        
+/>
     <ProfileProvider>
       <NavigationContainer>
         <Stack.Navigator initialRouteName="Splash">

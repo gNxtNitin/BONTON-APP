@@ -198,8 +198,7 @@ const MarkAttendanceScreen = () => {
   // Store the previous location to compute incremental distance.
   const prevLocationRef = useRef(null);
 
-  const [isEditingAddress, setIsEditingAddress] = useState(false);
-  const [tempAddress, setTempAddress] = useState('');
+
 
   const [openDropdown, setOpenDropdown] = useState(null);
   const [showImageOptions, setShowImageOptions] = useState(false);
@@ -424,10 +423,30 @@ const checkInternetConnection = async () => {
           // Save to asyncstorage
           await AsyncStorage.setItem('journeyStartCoords', JSON.stringify({ latitude, longitude }));
           await AsyncStorage.setItem('activeJourneyStartTime', new Date().toISOString());
+          
+          // Save start location to journey history immediately
+          const startJourneyData = {
+            startLocation: {
+              longitude: longitude,
+              latitude: latitude,
+              time: new Date().toISOString()
+            }
+          };
+          await saveJourneyHistory(startJourneyData);
+          
+          // Update local state
           setStartCoords({ latitude, longitude });
           setJourneyStartTime(new Date());
           setRouteDistance(null); // clear last route
-          Alert.alert('Success', 'Journey started successfully!');
+          
+          // Update journey history state
+          setJourneyHistory(prevHistory => {
+            const updatedHistory = [startJourneyData, ...prevHistory];
+            return updatedHistory.slice(0, 10); // Keep only 10 most recent
+          });
+          
+          // Show success toast
+          setToastVisible(true);
           setIsLoading(false); // Hide loader
         },
         (error) => {
@@ -599,23 +618,27 @@ const checkInternetConnection = async () => {
             });
           }
 
-          // Save journey data to history
-          const journeyData = {
-            stopLocation: {
-              longitude: endLat,
-              latitude: endLng,
-              time: new Date().toISOString()
+          // Find and update the existing start location entry with stop location
+          const updatedJourneyHistory = journeyHistory.map(journey => {
+            if (journey.startLocation && !journey.stopLocation) {
+              // This is the start location entry, add stop location to it
+              return {
+                ...journey,
+                stopLocation: {
+                  longitude: endLat,
+                  latitude: endLng,
+                  time: new Date().toISOString()
+                }
+              };
             }
-          };
-
-          // Save to journey history
-          await saveJourneyHistory(journeyData);
-
-          // Update the state
-          setJourneyHistory(prevHistory => {
-            const updatedHistory = [journeyData, ...prevHistory];
-            return updatedHistory.slice(0, 10); // Keep only 10 most recent
+            return journey;
           });
+
+          // Update journey history in AsyncStorage
+          await AsyncStorage.setItem(JOURNEY_HISTORY_KEY, JSON.stringify(updatedJourneyHistory));
+          
+          // Update local state
+          setJourneyHistory(updatedJourneyHistory);
 
           try {
             const response = await fetch(`${BASE_URL}${ENDPOINTS.ADD_EPUNCH_RECORD}`, {
@@ -633,24 +656,24 @@ const checkInternetConnection = async () => {
               await clearActiveJourney();
               await AsyncStorage.removeItem('journeyStartCoords');
               await AsyncStorage.removeItem('activeJourneyStartTime');
-              Alert.alert('Success', 'Attendance marked successfully.', [
-                {
-                  text: 'OK',
-                  onPress: () => {
-                    // Reset all relevant state
-                    setJourneyStartTime(null);
-                    setRouteDistance(null);
-                    setUploadedImage(null);
-                    setAddress('');
-                    setCategoryValue(null);
-                    setStartCoords({ latitude: null, longitude: null });
-                    setEndCoords({ latitude: null, longitude: null });
+              
+              // Show success toast
+              setToastVisibleEnd(true);
+              
+              // Clear data and navigate after 3 seconds
+              setTimeout(() => {
+                // Reset all relevant state
+                setJourneyStartTime(null);
+                setRouteDistance(null);
+                setUploadedImage(null);
+                setAddress('');
+                setCategoryValue(null);
+                setStartCoords({ latitude: null, longitude: null });
+                setEndCoords({ latitude: null, longitude: null });
 
-                    // Navigate to home screen
-                    navigation.navigate('Home');
-                  },
-                },
-              ]);
+                // Navigate to home screen
+                navigation.navigate('Home');
+              }, 3000);
             } else {
               Alert.alert('Error', data.msg || 'Failed to mark attendance.');
             }
@@ -970,16 +993,29 @@ const checkInternetConnection = async () => {
   // Restore journey state on mount
   useEffect(() => {
     const restoreJourney = async () => {
-      const data = await loadActiveJourney();
-      if (data) {
-        setJourneyStartTime(data.journeyStartTime ? new Date(data.journeyStartTime) : null);
+      try {
+        // Restore active journey data
+        const data = await loadActiveJourney();
+        if (data) {
+          setJourneyStartTime(data.journeyStartTime ? new Date(data.journeyStartTime) : null);
+          setCurrentPath(data.currentPath || []);
+          setCategoryValue(data.categoryValue || null);
+          setAddress(data.address || '');
+          setUploadedImage(data.uploadedImage || null);
+        }
 
-        setCurrentPath(data.currentPath || []);
+        // Restore start coordinates from AsyncStorage
+        const startCoordsStr = await AsyncStorage.getItem('journeyStartCoords');
+        if (startCoordsStr) {
+          const coords = JSON.parse(startCoordsStr);
+          setStartCoords(coords);
+        }
 
-        setCategoryValue(data.categoryValue || null);
-        setAddress(data.address || '');
-        setUploadedImage(data.uploadedImage || null);
-        // restore any other state if needed
+        // Load journey history to show any incomplete journeys
+        const history = await loadJourneyHistory();
+        setJourneyHistory(history);
+      } catch (error) {
+        console.error('Error restoring journey state:', error);
       }
     };
     restoreJourney();
@@ -1111,17 +1147,7 @@ const checkInternetConnection = async () => {
               />
             </View>
           </View>
-<CustomToast
-        visible={toastVisible}
-        message="Congratulations! Your journey has been started successfully."
-        onHide={() => setToastVisible(false)}
-      />
 
-<CustomToast
-        visible={toastVisibleEnd}
-        message="Your journey has been stop successfully."
-        onHide={() => setToastVisibleEnd(false)}
-      />
 
 
           <View style={{width: '100%', paddingVertical:2, zIndex: 9999}}>
@@ -1188,119 +1214,27 @@ const checkInternetConnection = async () => {
 
           <View style={{ marginBottom: 12 }}>
             <CustomLabel>Address<Text style={styles.requiredAsterisk}> *</Text></CustomLabel>
-            <View style={{
-              borderColor: '#fff',
-              borderWidth: 1,
-              backgroundColor: 'transparent',
-              borderRadius: 8,
-              padding: 15,
-              minHeight: 50,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              {isEditingAddress ? (
-                <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}>
-                  <TextInput
-                    style={{
-                      flex: 1,
-                      color: 'rgba(1, 75, 110, 0.7)',
-                      fontSize: 14,
-                      fontFamily: 'Montserrat-Regular',
-                      padding: 0,
-                      marginRight: 10
-                    }}
-                    value={tempAddress}
-                    onChangeText={setTempAddress}
-                    placeholder="Enter address"
-                    placeholderTextColor="rgba(1, 75, 110, 0.3)"
-                    multiline
-                  />
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (tempAddress.trim()) {
-                        setAddress(tempAddress.trim());
-                        setAddressError(''); // Clear error when address is saved
-                      }
-                      setIsEditingAddress(false);
-                    }}
-                    style={{
-                      backgroundColor: 'rgba(1, 75, 110, 0.1)',
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 6,
-                      borderWidth: 1,
-                      borderColor: 'rgba(1, 75, 110, 0.3)',
-                      marginRight: 8
-                    }}
-                  >
-                    <Text style={{
-                      color: '#014B6E',
-                      fontSize: 12,
-                      fontFamily: 'Montserrat-SemiBold',
-                    }}>
-                      Save
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setIsEditingAddress(false);
-                      setTempAddress('');
-                    }}
-                    style={{
-                      backgroundColor: 'rgba(244, 67, 54, 0.1)',
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 6,
-                      borderWidth: 1,
-                      borderColor: 'rgba(244, 67, 54, 0.3)',
-                    }}
-                  >
-                    <Text style={{
-                      color: '#F44336',
-                      fontSize: 12,
-                      fontFamily: 'Montserrat-SemiBold',
-                    }}>
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              ) : (
-                <>
-                  <Text style={{
-                    color: 'rgba(1, 75, 110, 0.7)',
-                    fontSize: 14,
-                    fontFamily: 'Montserrat-Regular',
-                    flex: 1,
-                    marginRight: 10
-                  }}>
-                    {address || 'Enter address'}
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => {
-                      setTempAddress(address || '');
-                      setIsEditingAddress(true);
-                    }}
-                    style={{
-                      backgroundColor: 'rgba(1, 75, 110, 0.1)',
-                      paddingHorizontal: 12,
-                      paddingVertical: 6,
-                      borderRadius: 6,
-                      borderWidth: 1,
-                      borderColor: 'rgba(1, 75, 110, 0.3)',
-                    }}
-                  >
-                    <Text style={{
-                      color: '#014B6E',
-                      fontSize: 12,
-                      fontFamily: 'Montserrat-SemiBold',
-                    }}>
-                      Edit Address
-                    </Text>
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
+            <TextInput
+              style={{
+                borderColor: '#fff',
+                borderWidth: 1,
+                backgroundColor: 'transparent',
+                borderRadius: 8,
+                padding: 15,
+                minHeight: 50,
+                color: 'rgba(1, 75, 110, 0.7)',
+                fontSize: 14,
+                fontFamily: 'Montserrat-Regular',
+              }}
+              value={address}
+              onChangeText={(text) => {
+                setAddress(text);
+                setAddressError(''); // Clear error when address is typed
+              }}
+              placeholder="Enter address"
+              placeholderTextColor="rgba(1, 75, 110, 0.3)"
+              multiline
+            />
             {showValidation && addressError ? (
               <Text style={styles.errorText}>
                 {addressError}
@@ -1559,6 +1493,34 @@ const checkInternetConnection = async () => {
               {/* All Journeys in Single Table */}
               {journeyHistory.map((journey, journeyIndex) => (
                 <React.Fragment key={journeyIndex}>
+                  {/* Start Location Row */}
+                  {journey.startLocation && (
+                    <View
+                      style={{
+                        flexDirection: 'row',
+                        borderTopWidth: 0.5,
+                        borderColor: '#000',
+                        backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                      }}
+                    >
+                      <View style={{ flex: 1, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8, justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ textAlign: 'center', color: '#2E7D32', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>
+                          Start
+                        </Text>
+                      </View>
+                      <View style={{ flex: 2, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8 }}>
+                        <Text style={{ textAlign: 'center', color: '#2E7D32', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>{journey.startLocation.longitude}</Text>
+                      </View>
+                      <View style={{ flex: 2, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8 }}>
+                        <Text style={{ textAlign: 'center', color: '#2E7D32', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>{journey.startLocation.latitude}</Text>
+                      </View>
+                      <View style={{ flex: 2, paddingVertical: 8 }}>
+                        <Text style={{ textAlign: 'center', color: '#2E7D32', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>
+                          {formatTime(journey.startLocation.time)}
+                        </Text>
+                      </View>
+                    </View>
+                  )}
                   {/* Stop Location Row */}
                   {journey.stopLocation && (
                     <View
@@ -1569,18 +1531,18 @@ const checkInternetConnection = async () => {
                       }}
                     >
                       <View style={{ flex: 1, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8, justifyContent: 'center', alignItems: 'center' }}>
-                        <Text style={{ textAlign: 'center', color: '#000', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>
+                        <Text style={{ textAlign: 'center', color: '#000', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>
                           Stop
                         </Text>
                       </View>
                       <View style={{ flex: 2, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8 }}>
-                        <Text style={{ textAlign: 'center', color: '#000', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>{journey.stopLocation.longitude}</Text>
+                        <Text style={{ textAlign: 'center', color: '#000', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>{journey.stopLocation.longitude}</Text>
                       </View>
                       <View style={{ flex: 2, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8 }}>
-                        <Text style={{ textAlign: 'center', color: '#000', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>{journey.stopLocation.latitude}</Text>
+                        <Text style={{ textAlign: 'center', color: '#000', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>{journey.stopLocation.latitude}</Text>
                       </View>
                       <View style={{ flex: 2, paddingVertical: 8 }}>
-                        <Text style={{ textAlign: 'center', color: '#000', fontFamily: 'Montserrat', fontWeight: '400', fontSize: 14 }}>
+                        <Text style={{ textAlign: 'center', color: '#000', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>
                           {formatTime(journey.stopLocation.time)}
                         </Text>
                       </View>
@@ -1588,6 +1550,35 @@ const checkInternetConnection = async () => {
                   )}
                 </React.Fragment>
               ))}
+
+              {/* Current Active Journey Start Location Row - Show when journey is active but not yet saved */}
+              {journeyStartTime && startCoords.latitude && startCoords.longitude && !journeyHistory.some(journey => journey.startLocation) && (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    borderTopWidth: 0.5,
+                    borderColor: '#000',
+                    backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                  }}
+                >
+                  <View style={{ flex: 1, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ textAlign: 'center', color: '#2E7D32', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>
+                      Start
+                    </Text>
+                  </View>
+                  <View style={{ flex: 2, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8 }}>
+                    <Text style={{ textAlign: 'center', color: '#2E7D32', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>{startCoords.longitude}</Text>
+                  </View>
+                  <View style={{ flex: 2, borderRightWidth: 1, borderColor: 'rgba(135, 203, 214, 1)', paddingVertical: 8 }}>
+                    <Text style={{ textAlign: 'center', color: '#2E7D32', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>{startCoords.latitude}</Text>
+                  </View>
+                  <View style={{ flex: 2, paddingVertical: 8 }}>
+                    <Text style={{ textAlign: 'center', color: '#000', fontFamily: 'Montserrat', fontWeight: '600', fontSize: 14 }}>
+                      {journeyStartTime ? journeyStartTime.toLocaleTimeString() : '00:00:00'}
+                    </Text>
+                  </View>
+                </View>
+              )}
 
             </View>
           )}
@@ -1624,6 +1615,19 @@ const checkInternetConnection = async () => {
           </View>
         </View>
       </Modal>
+      {/* Toast Messages - Positioned at center of screen */}
+      <CustomToast
+        visible={toastVisible}
+        message="Journey started successfully!"
+        onHide={() => setToastVisible(false)}
+      />
+
+      <CustomToast
+        visible={toastVisibleEnd}
+        message="Attendance marked successfully!"
+        onHide={() => setToastVisibleEnd(false)}
+      />
+
       {/* Simple Loader Overlay */}
       {isLoading && (
         <View style={{

@@ -18,6 +18,7 @@ import CustomTextInput from '../components/CustomTextInput';
 import { images } from '../constants/images';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BASE_URL, ENDPOINTS } from '../utils/apiConfig';
+import { useProfile } from '../context/ProfileContext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -26,6 +27,8 @@ const LoginScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const { resetProfileImage } = useProfile();
+
 
   const handleEmployeeIdChange = (text) => {
     setEmployeeId(text);
@@ -46,6 +49,8 @@ const LoginScreen = ({ navigation }) => {
     }
     try {
       setIsLoading(true);
+      resetProfileImage();
+
       // Prepare request body as per API
       const body = {
         mobileOrEmail: employeeId,

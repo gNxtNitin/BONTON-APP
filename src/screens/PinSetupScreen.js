@@ -214,7 +214,7 @@ const PinSetupScreen = ({ navigation, route }) => {
 
   const handleSwitchUser = async () => {
     try {
-      resetProfileImage();
+      // resetProfileImage();
       // Clear all stored data
       await AsyncStorage.multiRemove([PIN_STORAGE_KEY, LOGIN_STATUS_KEY, AUTH_TOKEN_KEY]);
       navigation.reset({
