@@ -3,7 +3,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createDrawerNavigator } from '@react-navigation/drawer';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { StatusBar } from 'react-native';
 import SplashScreen from '../screens/SplashScreen';
 import LoginScreen from '../screens/LoginScreen';
 import HomeScreen from '../screens/HomeScreen';
@@ -37,12 +36,7 @@ const DrawerNavigator = () => (
 );
 
 const AppNavigator = () => (
-  <SafeAreaView style={{ flex: 1 }} edges={['top', 'right', 'bottom', 'left']}>
-  <StatusBar
-  barStyle="light-content"   
-  backgroundColor="##4cf4dc"  
-  translucent={false}        
-/>
+  <SafeAreaView style={{ flex: 1 }}>
     <ProfileProvider>
       <NavigationContainer>
         <Stack.Navigator initialRouteName="Splash">

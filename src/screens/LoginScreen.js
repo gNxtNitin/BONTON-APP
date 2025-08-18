@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   ScrollView,
   ImageBackground,
   Alert,
+  StatusBar,
 } from 'react-native';
 import CustomTextInput from '../components/CustomTextInput';
 import { images } from '../constants/images';
@@ -28,6 +29,15 @@ const LoginScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { resetProfileImage } = useProfile();
+
+  useEffect(() => {
+    // Ensure status bar color is set on this screen
+    if (Platform.OS === 'android') {
+      StatusBar.setBackgroundColor('#4cf4dc', true);
+      StatusBar.setBarStyle('light-content', true);
+      StatusBar.setTranslucent(false);
+    }
+  }, []);
 
 
   const handleEmployeeIdChange = (text) => {
@@ -114,11 +124,18 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <ImageBackground
-      source={require('../assets/images/Background.png')}
-      style={styles.container}
-      resizeMode="cover"
-    >
+    <>
+      <StatusBar
+        backgroundColor="#4cf4dc"
+        barStyle="light-content"
+        translucent={false}
+        animated={true}
+      />
+      <ImageBackground
+        source={require('../assets/images/Background.png')}
+        style={styles.container}
+        resizeMode="cover"
+      >
       <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
         <View style={{ flex: 1, width: '100%' }}>
           <ScrollView
@@ -181,7 +198,8 @@ const LoginScreen = ({ navigation }) => {
           </ScrollView>
         </View>
       </TouchableWithoutFeedback>
-    </ImageBackground>
+      </ImageBackground>
+    </>
   );
 };
 

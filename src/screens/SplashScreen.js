@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Image, StyleSheet, Dimensions, ImageBackground } from 'react-native';
+import { View, Image, StyleSheet, Dimensions, ImageBackground, StatusBar, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
@@ -8,6 +8,13 @@ const LOGIN_STATUS_KEY = '@login_status';
 
 const SplashScreen = ({ navigation }) => {
   useEffect(() => {
+    // Ensure status bar color is set on this screen
+    if (Platform.OS === 'android') {
+      StatusBar.setBackgroundColor('#4cf4dc', true);
+      StatusBar.setBarStyle('light-content', true);
+      StatusBar.setTranslucent(false);
+    }
+
     const checkAuthAndNavigate = async () => {
       try {
         // Check if user details exist
@@ -62,8 +69,15 @@ const SplashScreen = ({ navigation }) => {
   }, [navigation]);
 
   return (
-    <ImageBackground
-      source={require('../assets/images/Background.png')}
+    <>
+      <StatusBar
+        backgroundColor="#4cf4dc"
+        barStyle="light-content"
+        translucent={false}
+        animated={true}
+      />
+      <ImageBackground
+        source={require('../assets/images/Background.png')}
       style={styles.container}
       resizeMode="cover"
     >
@@ -74,7 +88,8 @@ const SplashScreen = ({ navigation }) => {
           resizeMode="contain"
         />
       </View>
-    </ImageBackground>
+      </ImageBackground>
+    </>
   );
 };
 
